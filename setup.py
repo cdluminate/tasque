@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-setup(name='tq',
+setup(name='tq1',
       version='0.2.1',
       description='Command Line Scheduler',
       long_description=open('./README.md', 'r').read(),
