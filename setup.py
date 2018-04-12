@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(name='tq',
-      version='0.2',
+      version='0.2p1',
       description='Command Line Scheduler',
       long_description=open('./README.md', 'r').read(),
       url='https://github.com/CDLuminate/tq',

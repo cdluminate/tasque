@@ -427,7 +427,7 @@ def Usage(argv0):
     print('     5. add a task with even higher priority')
     print('        tq 999 10 -- sleep 10')
     print()
-    print('tq version: 0.2')
+    print('tq version: 0.2p1')
 
 
 def main():
