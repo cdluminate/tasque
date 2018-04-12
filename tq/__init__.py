@@ -136,7 +136,7 @@ def daemonize(*, uid, pidfile,
         os.dup2(f.fileno(), sys.stderr.fileno())
 
     # Write the PID file
-    os.system('touch {}'.format(PIDFILE))
+    os.system('touch {}'.format(pidfile))
     with open(pidfile, 'w+') as f:
         print(os.getpid(), file=f)
 
@@ -220,7 +220,7 @@ def _tqDaemon(dbpath: str, pidfile: str) -> None:
     '''
     Tq's Daemon, the scheduler
     '''
-    log.info(f'Tqd started with pid {os.getpid()} uid {UID}')
+    log.info(f'Tqd started with pid {os.getpid()}')
 
     if not os.path.exists(dbpath):
         tqCreateDB(dbpath)
