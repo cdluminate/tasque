@@ -22,11 +22,7 @@ import time
 from typing import *
 import multiprocessing as mp
 
-log.basicConfig(
-    format='%(levelno)s %(asctime)s %(process)d %(filename)s:%(lineno)d]'
-    + ' %(message)s',
-    level=log.DEBUG
-)
+
 
 # Foreground color, normal
 def red(x): return re.sub('^(.*)$', '\033[0;31m\\1\033[;m', x)
@@ -434,7 +430,13 @@ def Usage(argv0):
     print('tq version: 0.2')
 
 
-if __name__ == '__main__':
+def main():
+    import logging as log
+    log.basicConfig(
+        format='%(levelno)s %(asctime)s %(process)d %(filename)s:%(lineno)d]'
+        + ' %(message)s',
+        level=log.DEBUG
+    )
 
     UID = os.getuid()
     HOME = os.getenv('HOME')
