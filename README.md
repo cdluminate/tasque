@@ -1,10 +1,14 @@
 TQ -- Simple Command Line Job Manager
 ===
 
+[![Latest Version](https://pypip.in/version/tq1/badge.svg)](https://pypi.python.org/pypi/tq1/)
+
 TQ (Task Queue) is a simple Command Line Job Manager. (1) By default TQ
 execute the command lines one by one. (2) A command line with high
 Priority will be processed earlier. (3) When the estimated occupancy
 parameter is specified, TQ will run the commands in parallel if possible.
+
+## Install
 
 This tool is available via PIP: `pip3 install tq1`
 
