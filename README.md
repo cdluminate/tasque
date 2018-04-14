@@ -1,44 +1,49 @@
-Tq -- Command Line Scheduler
+TQ -- Simple Command Line Job Manager
 ===
 
+TQ (Task Queue) is a simple Command Line Job Manager. (1) By default TQ
+execute the command lines one by one. (2) A command line with high
+Priority will be processed earlier. (3) When the estimated occupancy
+parameter is specified, TQ will run the commands in parallel if possible.
+
+This tool is available via PIP: `pip3 install tq1`
+
+## Usage
+
 ```
-Usage: tq {COMMAND | -- TASK}
+Usage: {args[0]} ACTION [COMMAND_ARGS]
+       {args[0]} [P R] -- TASK
 
-          -> show usage, and tqd status
-  start   -> start daemon
-  stop    -> stop daemon
-  log     -> dump daemon log to screen
-  ls      -> fancy print of task queue
-  db      -> print database content to screen
-  rm ID   -> remove task with specified id, see ID with tq ls
-  clean   -> remove log file, clean task queue
-  purge   -> remove log file and sqlite3 db file
-  -- TASK -> assign TASK (a command line)
-  P R -- TASK -> create TASK with priority P and resource req R
-           int P range [INT_MIN, INT_MAX], higher = more important
-               P is used to tell important tasks
-           int R range [0, 10], estimated resource occupation
-               R is used for parallel execution
+Available Actions:
+    start      start TQ's daemon
+    stop       stop TQ's daemon
+    log        dump log to screen
+    ls         fancy print of task queue
+    db         print database content to screen
+    rm <ID>    remove task with specified id, see ID with tq ls
+    clean      remove finished tasks from queue
+    purge      remove log file and sqlite3 db file
 
-  Tq functionality and feature:
-     1. run command one by one in serial
-     2. run command in parallel by setting resource parameter
-     3. task priority is supported
+Apending Task:
+    -- TASK        append TASK to the queue
+    P R -- TASK    append TASK with priority P and estimated occupancy R
+                   int P default  0 range [INT_MIN, INT_MAX], large=important
+                   int R detault 10 range [1,       10],      large=consuming
+```
 
-  Example:
-     1. run two tasks in serial
-        tq -- sleep 10
-        tq -- sleep 10
-     2. run three tasks in parallel, each of then takes 40% of resource
-        tq 0 4 -- sleep 10
-        tq 0 4 -- sleep 10
-        tq 0 4 -- sleep 10
-     3. add a high priority task, which should run ASAP
-        tq 1 10 -- sleep 10
-     4. add a high priority task and run it right away
-        tq 1 0 -- sleep 10
-     5. add a task with even higher priority
-        tq 999 10 -- sleep 10
+## Examples
 
-tq version: 0.2
+```
+1. Serial: the two given tasks should be executed one by one
+     tq -- sleep 100
+     tq -- sleep 100
+2. Parallel: each task occupies 40% of resource.
+   In this example two tasks will be active at the same time.
+     tq 0 4 -- sleep 100
+     tq 0 4 -- sleep 100
+     tq 0 4 -- sleep 100
+3. Priority: break the FIFO order of tasks. 1 > default Priority.
+     tq 1 10 -- sleep 100
+4. Special Case: run the given task right away ignoring Pri and Rsc
+     tq 1 0 -- sleep 100
 ```
