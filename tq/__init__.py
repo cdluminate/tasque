@@ -3,9 +3,6 @@
 # @author COPYRIGHT (C) 2016-2018 Mo Zhou <cdluminate@gmail.com>
 # @license MIT License
 
-# FIXME: use argparser instead of the current ugly solution
-# FIXME: support editing Pri and Rsc attributes
-
 import atexit
 import io
 import logging as log
@@ -21,8 +18,8 @@ import sys
 import time
 from typing import *
 import multiprocessing as mp
-
-
+import math
+from pprint import pprint
 
 # Foreground color, normal
 def red(x): return re.sub('^(.*)$', '\033[0;31m\\1\033[;m', x)
@@ -45,7 +42,17 @@ def RedB(x): return re.sub('^(.*)$', '\033[1;41m\\1\033[;m', x)
 # other control sequences
 def Tset(x): return re.sub('^(.*)$', '\0337\\1', x)  # store location
 def Tcls(x): return re.sub('^(.*)$', '\033[K\\1', x)  # clear line
-def Tres(x): return re.sub('^(.*)$', '\\1\0338', x)  # restore location
+def Tres(x): return re.sub('^(.*)$', '\\1\0338', x)  # restore location 
+
+
+def sec2hms(s: float) -> str:
+    '''
+    Convert X seconds into A hour B minute C seconds as a string.
+    '''
+    sec = math.fmod(s, 60.0)
+    mm  = (int(s) // 60) % 60
+    hh  = (int(s) // 60) // 60
+    return f'{hh}h{mm}m{sec:.3f}s'
 
 
 def dbExec(dbpath: str, sql: str) -> None:
@@ -295,6 +302,7 @@ def tqLs(pidfile: str, dbpath: str) -> None:
         return
     sql = 'select * from tq'
     tasks = dbQuery(dbpath, sql)
+    print(yellow('⟵⟵⟵⟵☩⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶'))
     for k, task in enumerate(tasks, 1):
         id_, pid, cwd, cmd, retval, stime, etime, pri, rsc = task
         if retval is None and pid is None:  # wait
@@ -306,17 +314,18 @@ def tqLs(pidfile: str, dbpath: str) -> None:
         else:
             status = redB('[???]')
         print(Yellow(f'{id_:>3d} |'), 'St', status,
-              f'Pri {"-" if 0==pri else pri}',
-              f'Rsc {"-" if 10==rsc else rsc}')
+              f'| Pri {Purple("-" if 0==pri else str(pri))}',
+              f'| Rsc {Purple("-" if 10==rsc else str(rsc))}')
         if all((stime, etime)):
-            print('   ', Yellow('☀'), Purple(f'{etime-stime:.3f}s :'),
-                  f'{time.ctime(stime)} ➜ {time.ctime(etime)}')
+            print('   ', Yellow('☀'), Purple(f'{sec2hms(etime-stime)}'),
+                  f'| ({time.ctime(stime)}) ➜ ({time.ctime(etime)})')
         elif stime:
-            print('   ', Yellow('☀'), f'Started at {time.ctime(stime)}',
-                  Purple(f'➜ {time.time() - stime:.2f}s'), 'Elapsed.')
-        print('   ', Yellow('~'), Blue(cwd))
+            print('   ', Yellow('☀'), f'Started at ({time.ctime(stime)})',
+                  Purple(f'➜ {sec2hms(time.time() - stime)}'), 'Elapsed.')
+        print('   ', Yellow('⚑'), Blue(cwd))
         prog, args = cmd.split()[0], ' '.join(cmd.split()[1:])
-        print('   ', Yellow('$'), purple(prog), green(args))
+        print('   ', Yellow('✒'), purple(prog), green(args))
+        print(yellow('⟵⟵⟵⟵☩⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶'))
 
 
 def tqPurge(pidfile: str, dbpath: str, logfile: str,
@@ -388,49 +397,67 @@ def tqDumpDB(dbpath: str) -> None:
             print(x)
 
 
-def Usage(argv0):
-    print('Usage: {} {{COMMAND | -- TASK}}'.format(sys.argv[0]), file=sys.stderr)
-    print()
-    print('          -> show usage, and tqd status')
-    print('  start   -> start daemon')
-    print('  stop    -> stop daemon')
-    print('  log     -> dump daemon log to screen')
-    print('  ls      -> fancy print of task queue')
-    print('  db      -> print database content to screen')
-    print('  rm ID   -> remove task with specified id, see ID with tq ls')
-    print('  clean   -> remove log file, clean task queue')
-    print('  purge   -> remove log file and sqlite3 db file')
-    print('  -- TASK -> assign TASK (a command line)')
-    print('  P R -- TASK -> create TASK with priority P and resource req R')
-    print('           int P range [INT_MIN, INT_MAX], higher = more important')
-    print('               P is used to tell important tasks')
-    print('           int R range [0, 10], estimated resource occupation')
-    print('               R is used for parallel execution')
-    print()
-    print('  Tq functionality and feature:')
-    print('     1. run command one by one in serial')
-    print('     2. run command in parallel by setting resource parameter')
-    print('     3. task priority is supported')
-    print()
-    print('  Example:')
-    print('     1. run two tasks in serial')
-    print('        tq -- sleep 10')
-    print('        tq -- sleep 10')
-    print('     2. run three tasks in parallel, each of then takes 40% of resource')
-    print('        tq 0 4 -- sleep 10')
-    print('        tq 0 4 -- sleep 10')
-    print('        tq 0 4 -- sleep 10')
-    print('     3. add a high priority task, which should run ASAP')
-    print('        tq 1 10 -- sleep 10')
-    print('     4. add a high priority task and run it right away')
-    print('        tq 1 0 -- sleep 10')
-    print('     5. add a task with even higher priority')
-    print('        tq 999 10 -- sleep 10')
-    print()
-    print('tq version: 0.2.1')
+def tqEdit():
+    '''
+    FIXME: support editing Pri and Rsc attributes
+    '''
+    raise NotImplementedError
 
 
-def main():
+def tqUsage(args: List) -> None:
+    '''
+    Print TQ Usage
+    '''
+    usage = f'''
+Usage: {args[0]} ACTION [COMMAND_ARGS]
+       {args[0]} [P R] -- TASK
+
+Description:
+    TQ (Task Queue) is a simple Command Line Job Manager. (1) By default TQ
+    execute the command lines one by one. (2) A command line with high
+    Priority will be processed earlier. (3) When the estimated occupancy
+    parameter is specified, TQ will run the commands in parallel if possible.
+
+Available Actions:
+    start      start TQ's daemon
+    stop       stop TQ's daemon
+    log        dump log to screen
+    ls         fancy print of task queue
+    db         print database content to screen
+    rm <ID>    remove task with specified id, see ID with tq ls
+    clean      remove finished tasks from queue
+    purge      remove log file and sqlite3 db file
+
+Apending Task:
+    -- TASK        append TASK to the queue
+    P R -- TASK    append TASK with priority P and estimated occupancy R
+                   int P default  0 range [INT_MIN, INT_MAX], large=important
+                   int R detault 10 range [1,       10],      large=consuming
+
+Examples:
+    1. Serial: the two given tasks should be executed one by one
+         tq -- sleep 100
+         tq -- sleep 100
+    2. Parallel: each task occupies 40% of resource.
+       In this example two tasks will be active at the same time.
+         tq 0 4 -- sleep 100
+         tq 0 4 -- sleep 100
+         tq 0 4 -- sleep 100
+    3. Priority: break the FIFO order of tasks. 1 > default Priority.
+         tq 1 10 -- sleep 100
+    4. Special Case: run the given task right away ignoring Pri and Rsc
+         tq 1 0 -- sleep 100
+        '''
+    print(usage)
+
+
+def tqMain():
+    '''
+    tq's main func. It parses command line argument and invoke specified
+    functions of tq.
+
+    FIXME: use a better argument parser e.g. argparse
+    '''
     import logging as log
     log.basicConfig(
         format='%(levelno)s %(asctime)s %(process)d %(filename)s:%(lineno)d]'
@@ -438,46 +465,45 @@ def main():
         level=log.DEBUG
     )
 
-    UID = os.getuid()
-    HOME = os.getenv('HOME')
-    PIDFILE = os.path.join(HOME, '.tqd_{}.pid'.format(str(UID)))
-    LOGFILE = os.path.join(HOME, '.tqd_{}.log'.format(str(UID)))
-    SQLITE = os.path.join(HOME, '.tqd_{}.db'.format(str(UID)))
+    # get some info and paths
+    uid, cwd = os.getuid(), os.getcwd()
+    sqlite  = os.path.expanduser(f'~/.tqd_{uid}.db')
+    logfile = os.path.expanduser(f'~/.tqd_{uid}.log')
+    pidfile = os.path.expanduser(f'~/.tqd_{uid}.pid')
 
     if len(sys.argv) < 2:
-        Usage(sys.argv[0])
-        print()
-        if os.path.exists(PIDFILE):
-            print('tqd is \x1b[32;1mrunning\x1b[m.')
+        tqUsage(sys.argv)
+        if os.path.exists(pidfile):
+            print('TQ daemon is \x1b[32;1mrunning\x1b[m.')
         else:
-            print('tqd is \x1b[31;1mnot running\x1b[m.')
+            print('TQ daemon is \x1b[31;1mnot running\x1b[m.')
         raise SystemExit(1)
 
     if sys.argv[1] == 'start':
-        tqStart(UID, PIDFILE, LOGFILE, SQLITE)
+        tqStart(uid, pidfile, logfile, sqlite)
 
     elif sys.argv[1] == 'stop':
-        tqStop(PIDFILE)
+        tqStop(pidfile)
 
     elif sys.argv[1] == 'log':
-        if os.path.exists(LOGFILE):
-            with open(LOGFILE, 'r') as log:
+        if os.path.exists(logfile):
+            with open(logfile, 'r') as log:
                 print(log.read())
 
     elif sys.argv[1] == 'clean':
-        tqPurge(PIDFILE, SQLITE, LOGFILE, False)
+        tqPurge(pidfile, sqlite, logfile, False)
 
     elif sys.argv[1] == 'purge':
-        tqPurge(PIDFILE, SQLITE, LOGFILE, True)
+        tqPurge(pidfile, sqlite, logfile, True)
 
     elif sys.argv[1] == 'ls':
-        tqLs(PIDFILE, SQLITE)
+        tqLs(pidfile, sqlite)
 
     elif sys.argv[1] == 'rm':
-        tqDequeue(SQLITE, int(sys.argv[2]))
+        tqDequeue(sqlite, int(sys.argv[2]))
 
     elif sys.argv[1] == 'db':
-        tqDumpDB(SQLITE)
+        tqDumpDB(sqlite)
 
     elif len(sys.argv) >= 5 and sys.argv[3] == '--':
         # Special and powerful mode: specify priority and resource requirement
@@ -489,10 +515,10 @@ def main():
             log.error('Task missing')
             raise SystemExit(1)
 
-        if not os.path.exists(PIDFILE):
+        if not os.path.exists(pidfile):
             log.error('Tqd is not running, starting tqd ...')
         else:
-            tqEnqueue(SQLITE, cwd=cwd, cmd=cmd, pri=pri, rsc=rsc)
+            tqEnqueue(sqlite, cwd=cwd, cmd=cmd, pri=pri, rsc=rsc)
 
     elif sys.argv[1] == '--':
         cwd = os.getcwd()
@@ -502,11 +528,16 @@ def main():
             log.error('Task missing')
             raise SystemExit(1)
 
-        if not os.path.exists(PIDFILE):
+        if not os.path.exists(pidfile):
             log.error('Tqd is not running, starting tqd ...')
         else:
-            tqEnqueue(SQLITE, cwd=cwd, cmd=cmd)
+            tqEnqueue(sqlite, cwd=cwd, cmd=cmd)
 
     else:
         log.error('Unknown command {!r}'.format(sys.argv[1]))
         raise SystemExit(1)
+
+main = tqMain
+
+if __name__ == '__main__':
+    tqMain()
