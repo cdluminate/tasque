@@ -364,15 +364,13 @@ def tqEnqueue(dbpath: str, *,
     rsc: opt, None or int, range [0-10]
     '''
     ids = [t[0] for t in dbQuery(dbpath, 'select id from tq')]
-    print(ids)
     id_ = max(ids)+1 if len(ids) > 0 else 1
-    sql = f'insert into tq \
-           (id, pid, cwd, cmd, retval, stime, etime, pri, rsc) \
-           values \
-           ({id_}, {pid}, "{cwd}", "{cmd}", {retval}, {stime}, {etime}, {pri}, {rsc})'
+    sql = f'insert into tq' + \
+           ' (id, pid, cwd, cmd, retval, stime, etime, pri, rsc)' + \
+           ' values' + \
+          f' ({id_}, {pid}, "{cwd}", "{cmd}", {retval}, {stime}, {etime}, {pri}, {rsc})'
     log.info(sql_pretty(sql))
     dbExec(dbpath, sql)
-    log.info(sql)
 
 
 def tqDequeue(dbpath: str, id_: int) -> None:
@@ -537,7 +535,9 @@ def tqMain():
         log.error('Unknown command {!r}'.format(sys.argv[1]))
         raise SystemExit(1)
 
+
 main = tqMain
+
 
 if __name__ == '__main__':
     tqMain()
