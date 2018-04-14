@@ -3,10 +3,27 @@ TQ -- Simple Command Line Job Manager
 
 [![Latest Version](https://pypip.in/version/tq1/badge.svg)](https://pypi.python.org/pypi/tq1/)
 
-TQ (Task Queue) is a simple Command Line Job Manager. (1) By default TQ
-execute the command lines one by one. (2) A command line with high
-Priority will be processed earlier. (3) When the estimated occupancy
-parameter is specified, TQ will run the commands in parallel if possible.
+#### Description in English:
+
+TQ (Task Queue) is a simple Command Line Job Manager. In principle TQ is
+a very flexible and smart atd(8), which could arrange a series of jobs in
+an efficient way.
+
+1. By default TQ will run the jobs one by one in the FIFO order.
+2. A job with high priority will be processed earlier.
+3. Given the estimated occupancy coefficient, jobs can be executed in parallel as long as possible.
+
+The management of job queue is based on SQLite3 database, in which
+information about every job, including the start and end time, is stored.
+
+#### 中文描述(Description in Chinese):
+
+在一位大佬的怂恿下，我把自己炼丹用的队列管理器tq传到了pypi上。
+tq本质上就是一个异常灵活的atd，可以用来安排执行一系列耗时的命令。
+默认情况下tq会串行（FIFO）执行给定的任务队列。如果指定了优先级
+或者预计资源占用比，tq还能根据情况优先执行高优先任务，或者并行
+执行若干非独占的任务。队列的管理依赖于SQLite3数据库，每一个任务
+的各类信息，包括起止时间，都会被记录在其中。
 
 ## Install
 
