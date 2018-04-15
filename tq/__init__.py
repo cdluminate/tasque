@@ -411,10 +411,15 @@ Usage: {args[0]} ACTION [COMMAND_ARGS]
        {args[0]} [P R] -- TASK
 
 Description:
-    TQ (Task Queue) is a simple Command Line Job Manager. (1) By default TQ
-    execute the command lines one by one. (2) A command line with high
-    Priority will be processed earlier. (3) When the estimated occupancy
-    parameter is specified, TQ will run the commands in parallel if possible.
+    TQ (Task Queue) is a simple Command Line Job Manager. In principle TQ is
+    a very flexible and smart atd(8), which could arrange a series of jobs in
+    an efficient way.
+    (1) By default TQ will run the jobs one by one in the FIFO order.
+    (2) A job with high priority will be processed earlier.
+    (3) Given the estimated occupancy coefficient, jobs can be executed in
+        parallel as long as possible.
+    The management of job queue is based on SQLite3 database, in which
+    information about every job, including the start and end time, is stored.
 
 Available Actions:
     start      start TQ's daemon
@@ -428,6 +433,8 @@ Available Actions:
 
 Apending Task:
     -- TASK        append TASK to the queue
+    p<P> -- TASK   append TASK with priority P to the queue
+    r<R> -- TASK   append TASK with resource occupancy R to the queue
     P R -- TASK    append TASK with priority P and estimated occupancy R
                    int P default  0 range [INT_MIN, INT_MAX], large=important
                    int R detault 10 range [1,       10],      large=consuming
@@ -438,11 +445,11 @@ Examples:
          tq -- sleep 100
     2. Parallel: each task occupies 40% of resource.
        In this example two tasks will be active at the same time.
-         tq 0 4 -- sleep 100
-         tq 0 4 -- sleep 100
-         tq 0 4 -- sleep 100
+         tq r4 -- sleep 100
+         tq r4 -- sleep 100
+         tq r4 -- sleep 100
     3. Priority: break the FIFO order of tasks. 1 > default Priority.
-         tq 1 10 -- sleep 100
+         tq p1 -- sleep 100
     4. Special Case: run the given task right away ignoring Pri and Rsc
          tq 1 0 -- sleep 100
         '''
@@ -514,7 +521,26 @@ def tqMain():
             raise SystemExit(1)
 
         if not os.path.exists(pidfile):
-            log.error('Tqd is not running, starting tqd ...')
+            log.error('Tqd is not running, start tqd first.')
+        else:
+            tqEnqueue(sqlite, cwd=cwd, cmd=cmd, pri=pri, rsc=rsc)
+
+    elif len(sys.argv) >= 4 and sys.argv[2] == '--':
+        # specify P or R
+        if sys.argv[1].startswith('p') or sys.argv[1].startswith('P'):
+            pri, rsc = int(sys.argv[1][1:]), 10
+        elif sys.argv[1].startswith('r') or sys.argv[1].startswith('R'):
+            pri, rsc = 0, int(sys.argv[1][1:])
+        else:
+            raise Exception('Unexpected argv[1]')
+
+        cwd, cmd = os.getcwd(), ' '.join(sys.argv[3:])
+        if len(cmd) == 0:
+            log.error('Task Missing')
+            raise SystemExit(1)
+
+        if not os.path.exists(pidfile):
+            log.error('Tqd is not running, start tqd first.')
         else:
             tqEnqueue(sqlite, cwd=cwd, cmd=cmd, pri=pri, rsc=rsc)
 
@@ -527,7 +553,7 @@ def tqMain():
             raise SystemExit(1)
 
         if not os.path.exists(pidfile):
-            log.error('Tqd is not running, starting tqd ...')
+            log.error('Tqd is not running, start tqd first.')
         else:
             tqEnqueue(sqlite, cwd=cwd, cmd=cmd)
 
