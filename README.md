@@ -9,9 +9,12 @@ TQ (Task Queue) is a simple Command Line Job Manager. In principle TQ is
 a very flexible and smart atd(8), which could arrange a series of jobs in
 an efficient way.
 
-1. By default TQ will run the jobs one by one in the FIFO order.
-2. A job with high priority will be processed earlier.
-3. Given the estimated occupancy coefficient, jobs can be executed in parallel as long as possible.
+(1) By default TQ will run the jobs one by one in the FIFO order.
+
+(2) A job with high priority will be processed earlier.
+
+(3) Given the estimated occupancy coefficient, jobs can be executed in
+    parallel as long as possible.
 
 The management of job queue is based on SQLite3 database, in which
 information about every job, including the start and end time, is stored.
@@ -32,8 +35,8 @@ This tool is available via PIP: `pip3 install tq1`
 ## Usage
 
 ```
-Usage: {args[0]} ACTION [COMMAND_ARGS]
-       {args[0]} [P R] -- TASK
+Usage: tq ACTION [COMMAND_ARGS]
+       tq [P R] -- TASK
 
 Available Actions:
     start      start TQ's daemon
@@ -47,6 +50,8 @@ Available Actions:
 
 Apending Task:
     -- TASK        append TASK to the queue
+    p<P> -- TASK   append TASK with priority P to the queue
+    r<R> -- TASK   append TASK with resource occupancy R to the queue
     P R -- TASK    append TASK with priority P and estimated occupancy R
                    int P default  0 range [INT_MIN, INT_MAX], large=important
                    int R detault 10 range [1,       10],      large=consuming
@@ -55,16 +60,19 @@ Apending Task:
 ## Examples
 
 ```
+0. Daemon: to start or stop the daemon
+     tq start
+     tq stop
 1. Serial: the two given tasks should be executed one by one
      tq -- sleep 100
      tq -- sleep 100
 2. Parallel: each task occupies 40% of resource.
    In this example two tasks will be active at the same time.
-     tq 0 4 -- sleep 100
-     tq 0 4 -- sleep 100
-     tq 0 4 -- sleep 100
+     tq r4 -- sleep 100
+     tq r4 -- sleep 100
+     tq r4 -- sleep 100
 3. Priority: break the FIFO order of tasks. 1 > default Priority.
-     tq 1 10 -- sleep 100
+     tq p1 -- sleep 100
 4. Special Case: run the given task right away ignoring Pri and Rsc
      tq 1 0 -- sleep 100
 ```
