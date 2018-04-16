@@ -1,7 +1,7 @@
 #!/usr/bin/python3
-# @brief Command (Task) Queue Daemon for Linux, together with Client utils
-# @author COPYRIGHT (C) 2016-2018 Mo Zhou <cdluminate@gmail.com>
-# @license MIT License
+# TQ (Task Queue), simple Command Line Job Manager, together with client utilities
+# COPYRIGHT (C) 2016-2018 Mo Zhou <cdluminate@gmail.com>
+# MIT License
 
 import atexit
 import io
@@ -281,6 +281,23 @@ def tqStart(uid, pidfile, logfile, sqlite) -> None:
     _tqDaemon(sqlite, pidfile)
 
 
+def _tqCheckAlive(pidfile: str) -> bool:
+    '''
+    Check if TQD is alive given the pidfile.
+    '''
+    if os.path.exists(pidfile):
+        with open(pidfile) as f:
+            try:
+                os.kill(int(f.read()), 0) # does nothing
+            except OSError:
+                # process does not exist
+                os.remove(pidfile)
+                return False
+            else:
+                # process is alive
+                return True
+
+
 def tqStop(pidfile: str) -> None:
     '''
     Stop the Daemon
@@ -395,11 +412,14 @@ def tqDumpDB(dbpath: str) -> None:
             print(x)
 
 
-def tqEdit():
+def tqEdit(dbpath: str, id_: int, *, pri: int = 0, rsc: int = 10):
     '''
-    FIXME: support editing Pri and Rsc attributes
+    editing Pri and Rsc attributes
     '''
-    raise NotImplementedError
+    sql = f"update tq set pri = {pri}, rsc = {rsc}" \
+        + f" where (id = {id_}) limit 1"
+    log.debug(sql_pretty(sql))
+    dbExec(dbpath, sql)
 
 
 def tqUsage(args: List) -> None:
@@ -427,6 +447,8 @@ Available Actions:
     log        dump log to screen
     ls         fancy print of task queue
     db         print database content to screen
+    pri ID P   change prioritry of task ID
+    rsc ID R   change resource occupance of task ID
     rm <ID>    remove task with specified id, see ID with tq ls
     clean      remove finished tasks from queue
     purge      remove log file and sqlite3 db file
@@ -476,6 +498,8 @@ def tqMain():
     logfile = os.path.expanduser(f'~/.tqd_{uid}.log')
     pidfile = os.path.expanduser(f'~/.tqd_{uid}.pid')
 
+    _tqCheckAlive(pidfile)
+
     if len(sys.argv) < 2:
         tqUsage(sys.argv)
         if os.path.exists(pidfile):
@@ -509,6 +533,12 @@ def tqMain():
 
     elif sys.argv[1] == 'db':
         tqDumpDB(sqlite)
+
+    elif len(sys.argv) == 4 and sys.argv[1] == 'pri':
+        tqEdit(sqlite, int(sys.argv[2]), pri=int(sys.argv[3]))
+
+    elif len(sys.argv) == 4 and sys.argv[1] == 'rsc':
+        tqEdit(sqlite, int(sys.argv[2]), rsc=int(sys.argv[3]))
 
     elif len(sys.argv) >= 5 and sys.argv[3] == '--':
         # Special and powerful mode: specify priority and resource requirement
