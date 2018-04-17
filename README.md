@@ -3,6 +3,8 @@ TQ -- Simple Command Line Job Manager
 
 [![Latest Version](https://pypip.in/version/tq1/badge.svg)](https://pypi.python.org/pypi/tq1/)
 
+![tqls1](tqls1.png)
+
 #### Description in English:
 
 TQ (Task Queue) is a simple Command Line Job Manager. In principle TQ is
