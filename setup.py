@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(name='tq1',
-      version='0.3.2',
+      version='0.3.3',
       description='Simple Command Line Job Manager',
       long_description=open('./README.md', 'r').read(),
       long_description_content_type='text/markdown',

@@ -43,6 +43,7 @@ def RedB(x): return re.sub('^(.*)$', '\033[1;41m\\1\033[;m', x)
 def Tset(x): return re.sub('^(.*)$', '\0337\\1', x)  # store location
 def Tcls(x): return re.sub('^(.*)$', '\033[K\\1', x)  # clear line
 def Tres(x): return re.sub('^(.*)$', '\\1\0338', x)  # restore location 
+def underline(x): return re.sub('^(.*)$', '\033[4m\\1\033[24m', x)
 
 
 def sec2hms(s: float) -> str:
@@ -281,21 +282,52 @@ def tqStart(uid, pidfile, logfile, sqlite) -> None:
     _tqDaemon(sqlite, pidfile)
 
 
+def _tqCheckPID(pid: int) -> bool:
+    '''
+    Check if a given process specified by its PID is alive.
+    '''
+    try:
+        os.kill(pid, 0)  # does nothing
+    except OSError:
+        return False
+    else:
+        return True
+
+
 def _tqCheckAlive(pidfile: str) -> bool:
     '''
     Check if TQD is alive given the pidfile.
     '''
     if os.path.exists(pidfile):
         with open(pidfile) as f:
-            try:
-                os.kill(int(f.read()), 0) # does nothing
-            except OSError:
-                # process does not exist
-                os.remove(pidfile)
-                return False
-            else:
-                # process is alive
-                return True
+            pid = int(f.read())
+        if _tqCheckPID(pid):
+            return True
+        else:
+            # process does not exist
+            os.remove(pidfile)
+            return False
+
+
+def _tqCheckWorkerAlive(dbpath: str) -> bool:
+    '''
+    Check if the "running" workers are alive.
+    Set pid to -1 to indicate abnormal behaviour.
+    '''
+    if os.path.exists(dbpath):
+        sql = 'select id, pid from tq where (not pid is null) and (retval is null)'
+        workers = dbQuery(dbpath, sql)
+        wkstat = [_tqCheckPID(pid) for id_, pid in workers]
+        if all(wkstat):
+            return True
+        else:
+            xids = [workers[i][0] for i, st in enumerate(wkstat) if not st]
+            for id_ in xids:
+                sql = f'update tq set pid = {-1} where (id = {id_}) limit 1'
+                dbExec(dbpath, sql)
+            return False
+    else:
+        return True
 
 
 def tqStop(pidfile: str) -> None:
@@ -319,7 +351,7 @@ def tqLs(pidfile: str, dbpath: str) -> None:
         return
     sql = 'select * from tq'
     tasks = dbQuery(dbpath, sql)
-    print(yellow('⟵⟵⟵⟵☩⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶'))
+    print(yellow('┌───┬'+'─'*73+'┐'))
     for k, task in enumerate(tasks, 1):
         id_, pid, cwd, cmd, retval, stime, etime, pri, rsc = task
         if retval is None and pid is None:  # wait
@@ -327,22 +359,29 @@ def tqLs(pidfile: str, dbpath: str) -> None:
         elif retval is not None and pid is None:
             status = Green('[✓]') if retval == 0 else RedB(White(f'[✗ {retval}]'))
         elif retval is None and pid is not None:
-            status = Cyan(f'[⚙ {pid}]')
+            status = Cyan(f'[⚙ {pid}]') if pid > 0 else Yellow(f'[⚠ Accident]')
         else:
-            status = redB('[???]')
-        print(Yellow(f'{id_:>3d} |'), 'St', status,
+            status = redB('[???BUG???]')
+        # first line : status
+        print(Yellow(f'│{id_:>3d}│'), 'St', status,
               f'| Pri {Purple("-" if 0==pri else str(pri))}',
               f'| Rsc {Purple("-" if 10==rsc else str(rsc))}')
+        # second line : time
         if all((stime, etime)):
-            print('   ', Yellow('☀'), Purple(f'{sec2hms(etime-stime)}'),
+            print(yellow('│   ├'), Yellow('☀'), Purple(f'{sec2hms(etime-stime)}'),
                   f'| ({time.ctime(stime)}) ➜ ({time.ctime(etime)})')
         elif stime:
-            print('   ', Yellow('☀'), f'Started at ({time.ctime(stime)})',
+            print(yellow('│   ├'), Yellow('☀'), f'Started at ({time.ctime(stime)})',
                   Purple(f'➜ {sec2hms(time.time() - stime)}'), 'Elapsed.')
-        print('   ', Yellow('⚑'), Blue(cwd))
+        # third line: cwd
+        print(yellow('│   ├'), Yellow('⚑'), Blue(cwd))
         prog, args = cmd.split()[0], ' '.join(cmd.split()[1:])
-        print('   ', Yellow('✒'), purple(prog), green(args))
-        print(yellow('⟵⟵⟵⟵☩⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶⟶'))
+        # fourth line: cmd
+        print(yellow('│   ├'), Yellow('✒'), purple(underline(prog)), green(underline(args)))
+        if k < len(tasks):
+            print(yellow('├───┼'+'─'*73+'┤'))
+        else:
+            print(yellow('└───┴'+'─'*73+'┘'))
 
 
 def tqPurge(pidfile: str, dbpath: str, logfile: str,
@@ -499,6 +538,7 @@ def tqMain():
     pidfile = os.path.expanduser(f'~/.tqd_{uid}.pid')
 
     _tqCheckAlive(pidfile)
+    _tqCheckWorkerAlive(sqlite)
 
     if len(sys.argv) < 2:
         tqUsage(sys.argv)
@@ -533,6 +573,10 @@ def tqMain():
 
     elif sys.argv[1] == 'db':
         tqDumpDB(sqlite)
+
+    elif sys.argv[1] == '_check':
+        print('check TQ daemon ...', _tqCheckAlive(pidfile))
+        print('check Workers   ...', _tqCheckWorkerAlive(sqlite))
 
     elif len(sys.argv) == 4 and sys.argv[1] == 'pri':
         tqEdit(sqlite, int(sys.argv[2]), pri=int(sys.argv[3]))
