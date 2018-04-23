@@ -32,7 +32,35 @@ tq本质上就是一个异常灵活的atd，可以用来安排执行一系列耗
 
 ## Install
 
-This tool is available via PIP: `pip3 install tq1`
+This tools is available on Pypi. Just issue the following command:
+```
+pip3 install tq1
+```
+Note that `python3 >= 3.6` is required due to new language features used
+in the code. There is no plan to support lower version of python.
+
+## Real-Life Example
+
+TQ can be used to deal with some commands in an async manner. e.g.
+```
+$ tq -- git push  # Doesn't block. Have it done in async.
+$ vim mycode.py
+```
+
+TQ can be used to manage a series of computation experiments, such as
+deep learning experiments, e.g.
+```
+$ tq r5 -- caffe train -solver net1forfun.prototxt
+$ tq r5 -- caffe train -solver net2forfun.prototxt
+$ tq 1 5 -- python3 train.py --lr 1e-2
+$ tq 1 5 -- python3 train.py --lr 1e-3
+$ tq 1 5 -- python3 train.py --lr 1e-4
+$ tq 1 5 -- python3 train.py --lr 1e-5
+$ tq p10 -- python3 important_train.py
+```
+One can just put many computation tasks in the queue, and TQ will smartly
+schedule these experiments according to the given priority and resource
+occupancy parameters.
 
 ## Usage
 
@@ -59,7 +87,7 @@ Apending Task:
                    int R detault 10 range [1,       10],      large=consuming
 ```
 
-## Examples
+## Usage Examples
 
 ```
 0. Daemon: to start or stop the daemon
@@ -78,3 +106,13 @@ Apending Task:
 4. Special Case: run the given task right away ignoring Pri and Rsc
      tq 1 0 -- sleep 100
 ```
+
+## See Also
+
+atd(8), HTCondor, Torque, Slurm, PBS.
+
+https://wiki.debian.org/HighPerformanceComputing
+
+## License
+
+MIT License.
