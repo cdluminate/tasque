@@ -3,9 +3,21 @@
 # COPYRIGHT (C) 2016-2018 Mo Zhou <cdluminate@gmail.com>
 # MIT License
 
+# ? FIXME: unify the tq*() interfaces and setup a argv->func mapping. this simplifies main function
+# ? FIXME: tidy up the logging
+# ? FIXME: tidy up the code
+# ? FIXME: put the ANSI excape code wrappers into a single Class or function
+# ? FIXME: replace the current argument parsing with argparse or alike. However the argument definition of TQ is somewhat abnormal ...
+# ? FIXME: tq autostart? I guess no.
+# ? FIXME: batch dbQuery
+
+from pprint import pprint
+from typing import *
 import atexit
 import io
 import logging as log
+import math
+import multiprocessing as mp
 import os
 import re
 import select
@@ -16,10 +28,63 @@ import sqlite3
 import subprocess
 import sys
 import time
-from typing import *
-import multiprocessing as mp
-import math
-from pprint import pprint
+
+
+def tqUsage(args: List) -> None:
+    '''
+    Print TQ Usage
+    '''
+    usage = f'''
+Usage: {args[0]} ACTION [COMMAND_ARGS]
+       {args[0]} [OPTION] -- TASK
+
+Description:
+    TQ (Task Queue) is a simple Command Line Job Manager. In principle TQ is
+    a very flexible and smart atd(8), which could arrange a series of jobs in
+    an efficient way.
+    (1) By default TQ will run the jobs one by one in the FIFO order.
+    (2) A job with high priority will be processed earlier.
+    (3) Given the estimated occupancy coefficient, jobs can be executed in
+        parallel as long as possible.
+    The management of job queue is based on SQLite3 database, in which
+    information about every job, including the start and end time, is stored.
+
+Available Actions:
+    start      start TQ's daemon
+    stop       stop TQ's daemon
+    log        dump log to screen
+    ls         fancy print of task queue
+    db         print database content to screen
+    pri ID P   change prioritry of task ID
+    rsc ID R   change resource occupance of task ID
+    rm <ID>    remove task with specified id, see ID with tq ls
+    clean      remove finished tasks from queue
+    purge      remove log file and sqlite3 db file
+
+Apending Task:
+    -- TASK        append TASK to the queue
+    p<P> -- TASK   append TASK with priority P to the queue
+    r<R> -- TASK   append TASK with resource occupancy R to the queue
+    P R -- TASK    append TASK with priority P and estimated occupancy R
+                   int P default  0 range [INT_MIN, INT_MAX], large=important
+                   int R detault 10 range [1,       10],      large=consuming
+
+Examples:
+    1. Serial: the two given tasks should be executed one by one
+         tq -- sleep 100
+         tq -- sleep 100
+    2. Parallel: each task occupies 40% of resource.
+       In this example two tasks will be active at the same time.
+         tq r4 -- sleep 100
+         tq r4 -- sleep 100
+         tq r4 -- sleep 100
+    3. Priority: break the FIFO order of tasks. 1 > default Priority.
+         tq p1 -- sleep 100
+    4. Special Case: run the given task right away ignoring Pri and Rsc
+         tq 1 0 -- sleep 100
+        '''
+    print(usage)
+
 
 # Foreground color, normal
 def red(x): return re.sub('^(.*)$', '\033[0;31m\\1\033[;m', x)
@@ -153,7 +218,7 @@ def daemonize(*, uid, pidfile,
 
     # Signal handler for termination (required)
     def sigterm_handler(signo, frame):
-        log.info('recieved SIGTERM, exit.')
+        log.info('TQD recieved SIGTERM, exit.')
         raise SystemExit(1)
 
     signal.signal(signal.SIGTERM, sigterm_handler)
@@ -171,9 +236,8 @@ def _tqWorker(dbpath: str, task: tuple) -> None:
     # update database before working
     sql = f"update tq set pid = {pid}, stime = {time.time()}" \
         + f" where (id = {id_}) limit 1"
-    log.info(f'updating SQL: {sql}')
+    log.debug(f'Worker[{os.getpid()}]: SQL update -- {sql}')
     dbExec(dbpath, sql)
-    log.debug(sql_pretty(sql))
 
     try:
         os.chdir(cwd)
@@ -191,7 +255,7 @@ def _tqWorker(dbpath: str, task: tuple) -> None:
         tqout, tqerr = '', ''
         retval = -1
     finally:
-        log.info('    tq_popen done')
+        log.info(f'Worker[{os.getpid()}]: subprocess.Popen() successfully returned.')
 
     os.chdir(cwd)
     if len(tqout) > 0:
@@ -204,7 +268,7 @@ def _tqWorker(dbpath: str, task: tuple) -> None:
     # update database after finishing the task
     sql = f"update tq set retval = {retval}, etime = {time.time()}," \
         + f"pid = null where (id = {id_}) limit 1"
-    log.debug(sql_pretty(sql))
+    log.debug(f'Worker[{os.getpid()}]: SQL update -- {sql}')
     dbExec(dbpath, sql)
     # don't remove pidfile! i.e. don't trigger atexit().
     os._exit(0)
@@ -228,33 +292,54 @@ def _tqDaemon(dbpath: str, pidfile: str) -> None:
     '''
     Tq's Daemon, the scheduler
     '''
-    log.info(f'Tqd started with pid {os.getpid()}')
+    log.info(f'TQD started with pid {os.getpid()}')
 
     if not os.path.exists(dbpath):
+        log.info(f'TQD is creating a new SQLite3 databse')
         tqCreateDB(dbpath)
-    log.debug('Tqd keeping an eye on sqlite3')
+    log.debug('TQD is keeping an eye on SQLite3 databse ...')
+
+    def _daemonsleep() -> None:
+        time.sleep(1)
 
     workerpool = []
     while True:
 
-        # look for todo task
-        sql = f'select rsc from tq where (pid is not null)'
-        arsc = 10 - sum(x[0]
-                        for x in dbQuery(dbpath, sql))  # available resource
+        # Assessment: find the current available resource coefficient
+        sql = f'select rsc from tq where (pid is not null) and (pid > 0)'
+        arsc = 10 - sum(x[0] for x in dbQuery(dbpath, sql))
 
-        sql = f'select * from tq where (pid is null) and (retval is null) and (rsc <= {arsc}) order by pri desc, id'
-        todolist = dbQuery(dbpath, sql)
+        # Assessment: find the current highest priority among running jobs
+        sql = f'select pri from tq where (pid is not null) and (pid > 0)'
+        results = dbQuery(dbpath, sql)
+        curhighpri = max(x[0] for x in results) if len(results)>0 else 0
+
+        # Tier 1 candidate: is there any high-pri candidate waiting in queue?
+        sql = f'select id from tq where (pid is null) and (retval is null) and (pri > {curhighpri}) order by pri desc'
+        results = dbQuery(dbpath, sql)
+        if len(results) > 0:
+            sql = f'select * from tq where (pid is null) and (retval is null) and (pri > {curhighpri}) and (rsc <= {arsc}) order by pri desc'
+            todolist = dbQuery(dbpath, sql)
+        else:
+            # Tier 2 candidates: equal priority tasks
+            sql = f'select id from tq where (pid is null) and (retval is null) and (pri = {curhighpri}) order by id'
+            results = dbQuery(dbpath, sql)
+            if len(results) > 0:
+                sql = f'select * from tq where (pid is null) and (retval is null) and (pri = {curhighpri}) and (rsc <= {arsc}) order by id'
+                todolist = dbQuery(dbpath, sql)
+            else:
+                # Tier 3 candidates: lower priority
+                sql = f'select * from tq where (pid is null) and (retval is null) and (rsc <= {arsc}) order by pri desc, id'
+                todolist = dbQuery(dbpath, sql)
 
         if len(todolist) > 0:  # there are works to do
-            #log.info('sqlite3> {}'.format(sql))
             task = todolist[0]
+            log.debug(f'TQD[{os.getpid()}]: Next task scheduled -- {task}')
             id_, pid, cwd, cmd, retval, stime, etime, pri, rsc = task
 
-            log.info('new task detected, execute next task')
+            log.info(f'About to execute the next task -- {task}')
             log.info('    cwd = {}'.format(cwd))
             log.info('    cmd = {}'.format(cmd))
-
-            log.info(f'working on task: {task}')
 
             # create a new worker process for this task
             worker = mp.Process(target=_tqWorker, args=(dbpath, task))
@@ -262,17 +347,17 @@ def _tqDaemon(dbpath: str, pidfile: str) -> None:
             worker.start()
 
         # domestic stuff
-        time.sleep(1)
+        _daemonsleep()
         workerpool = _tqWPrefresh(workerpool)
 
 
-def tqStart(uid, pidfile, logfile, sqlite) -> None:
+def tqStart(pidfile, sqlite, logfile) -> None:
     '''
     Start the Tq Daemon for Task scheduling
     '''
     log.info('starting Tqd ...')
     try:
-        daemonize(uid=uid,
+        daemonize(uid=os.getuid(),
                   pidfile=pidfile,
                   stdout=logfile,
                   stderr=logfile)
@@ -338,7 +423,7 @@ def tqStop(pidfile: str) -> None:
         with open(pidfile) as f:
             os.kill(int(f.read()), signal.SIGTERM)
     else:
-        log.info('Tqd is NOT running')
+        log.info('TQD is NOT running...')
         raise SystemExit(1)
 
 
@@ -347,7 +432,7 @@ def tqLs(pidfile: str, dbpath: str) -> None:
     List items in the tq database in pretty format. Fancy version of tqDumpDB
     '''
     if not os.path.exists(dbpath):
-        log.error('Oops! tq database is not found.')
+        log.error('Oops! TQ database is not found.')
         return
     sql = 'select * from tq'
     tasks = dbQuery(dbpath, sql)
@@ -378,10 +463,24 @@ def tqLs(pidfile: str, dbpath: str) -> None:
         prog, args = cmd.split()[0], ' '.join(cmd.split()[1:])
         # fourth line: cmd
         print(yellow('│   ├'), Yellow('✒'), purple(underline(prog)), green(underline(args)))
-        if k < len(tasks):
-            print(yellow('├───┼'+'─'*73+'┤'))
-        else:
-            print(yellow('└───┴'+'─'*73+'┘'))
+        print(yellow('├───┼'+'─'*73+'┤'))
+    # print summary
+    sql = 'select id from tq where not (pid is null) and (pid > 0)'
+    stat_running = len(dbQuery(dbpath, sql))
+    sql = 'select id from tq where (pid is null) and (retval is null)'
+    stat_wait = len(dbQuery(dbpath, sql))
+    sql = 'select id from tq where (pid is null) and not (retval is null)'
+    stat_done = len(dbQuery(dbpath, sql))
+    sql = 'select id from tq where not (pid is null) and (pid < 0)'
+    stat_accident = len(dbQuery(dbpath, sql))
+    sql = f'select rsc from tq where (pid is not null) and (pid > 0)'
+    arsc = 10 - sum(x[0] for x in dbQuery(dbpath, sql))
+
+    print(yellow('│ ') + White('❄') + yellow(' │'),
+          f'Stat: {stat_running:>2d} Running, {stat_wait:>2d} Waiting,',
+          f'{stat_done:>2d} Done, {stat_accident:>2d} Accident,',
+          f'{arsc:>2d} Rsc Avail.', '    ', yellow(' │'))
+    print(yellow('└───┴'+'─'*73+'┘'))
 
 
 def tqPurge(pidfile: str, dbpath: str, logfile: str,
@@ -425,7 +524,7 @@ def tqEnqueue(dbpath: str, *,
            ' (id, pid, cwd, cmd, retval, stime, etime, pri, rsc)' + \
            ' values' + \
           f' ({id_}, {pid}, "{cwd}", "{cmd}", {retval}, {stime}, {etime}, {pri}, {rsc})'
-    log.info(sql_pretty(sql))
+    log.info(f'tqEnqueue: {sql_pretty(sql)}')
     dbExec(dbpath, sql)
 
 
@@ -436,7 +535,7 @@ def tqDequeue(dbpath: str, id_: int) -> None:
     '''
     if os.path.exists(dbpath):
         sql = f'delete from tq where (pid is null) and (id = {id_})'
-        print(sql)
+        log.info(f'TQ SQL update -- {sql}')
         dbExec(dbpath, sql)
 
 
@@ -457,72 +556,14 @@ def tqEdit(dbpath: str, id_: int, *, pri: int = 0, rsc: int = 10):
     '''
     sql = f"update tq set pri = {pri}, rsc = {rsc}" \
         + f" where (id = {id_}) limit 1"
-    log.debug(sql_pretty(sql))
+    log.debug(f'tqEdit SQL update -- {sql}')
     dbExec(dbpath, sql)
-
-
-def tqUsage(args: List) -> None:
-    '''
-    Print TQ Usage
-    '''
-    usage = f'''
-Usage: {args[0]} ACTION [COMMAND_ARGS]
-       {args[0]} [P R] -- TASK
-
-Description:
-    TQ (Task Queue) is a simple Command Line Job Manager. In principle TQ is
-    a very flexible and smart atd(8), which could arrange a series of jobs in
-    an efficient way.
-    (1) By default TQ will run the jobs one by one in the FIFO order.
-    (2) A job with high priority will be processed earlier.
-    (3) Given the estimated occupancy coefficient, jobs can be executed in
-        parallel as long as possible.
-    The management of job queue is based on SQLite3 database, in which
-    information about every job, including the start and end time, is stored.
-
-Available Actions:
-    start      start TQ's daemon
-    stop       stop TQ's daemon
-    log        dump log to screen
-    ls         fancy print of task queue
-    db         print database content to screen
-    pri ID P   change prioritry of task ID
-    rsc ID R   change resource occupance of task ID
-    rm <ID>    remove task with specified id, see ID with tq ls
-    clean      remove finished tasks from queue
-    purge      remove log file and sqlite3 db file
-
-Apending Task:
-    -- TASK        append TASK to the queue
-    p<P> -- TASK   append TASK with priority P to the queue
-    r<R> -- TASK   append TASK with resource occupancy R to the queue
-    P R -- TASK    append TASK with priority P and estimated occupancy R
-                   int P default  0 range [INT_MIN, INT_MAX], large=important
-                   int R detault 10 range [1,       10],      large=consuming
-
-Examples:
-    1. Serial: the two given tasks should be executed one by one
-         tq -- sleep 100
-         tq -- sleep 100
-    2. Parallel: each task occupies 40% of resource.
-       In this example two tasks will be active at the same time.
-         tq r4 -- sleep 100
-         tq r4 -- sleep 100
-         tq r4 -- sleep 100
-    3. Priority: break the FIFO order of tasks. 1 > default Priority.
-         tq p1 -- sleep 100
-    4. Special Case: run the given task right away ignoring Pri and Rsc
-         tq 1 0 -- sleep 100
-        '''
-    print(usage)
 
 
 def tqMain():
     '''
     tq's main func. It parses command line argument and invoke specified
     functions of tq.
-
-    FIXME: use a better argument parser e.g. argparse
     '''
     import logging as log
     log.basicConfig(
@@ -549,7 +590,7 @@ def tqMain():
         raise SystemExit(1)
 
     if sys.argv[1] == 'start':
-        tqStart(uid, pidfile, logfile, sqlite)
+        tqStart(pidfile, sqlite, logfile)
 
     elif sys.argv[1] == 'stop':
         tqStop(pidfile)
