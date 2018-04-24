@@ -240,22 +240,32 @@ def _tqWorker(dbpath: str, task: tuple) -> None:
     dbExec(dbpath, sql)
 
     try:
+        # change directory, fork and execute the task.
         os.chdir(cwd)
         proc = subprocess.Popen(
             shlex.split(cmd), shell=False, stdin=None,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
+
+        # override TQD's sigaction handler
+        def sigterm_handler(signo, frame):
+            log.info(f'Worker[{os.getpid()}] recieved SIGTERM. Gracefully pulling down task process...')
+            proc.kill()
+            os._exit(0)
+        signal.signal(signal.SIGTERM, sigterm_handler)
+
+        # If nothing goes wrong, we'll get the content of stdout and stderr
         tqout, tqerr = proc.communicate()
         retval = proc.returncode
     except FileNotFoundError as e:
         log.error('    {}'.format(str(e)))
         tqout, tqerr = '', ''
         retval = -1
-    except:
-        log.error('    {}'.format('Unknown Error!'))
+    except Exception as e:
+        log.error(f'    {e}')
         tqout, tqerr = '', ''
         retval = -1
     finally:
-        log.info(f'Worker[{os.getpid()}]: subprocess.Popen() successfully returned.')
+        log.info(f'Worker[{os.getpid()}]: subprocess.Popen() task successfully returned.')
 
     os.chdir(cwd)
     if len(tqout) > 0:
@@ -427,6 +437,18 @@ def tqStop(pidfile: str) -> None:
         raise SystemExit(1)
 
 
+def tqKill(pidfile: str, dbpath: str, id_: int) -> None:
+    '''
+    Kill the worker specified by given task id
+    '''
+    if os.path.exists(dbpath):
+        sql = f'select pid from tq where (id = {id_}) limit 1'
+        tpid = dbQuery(dbpath, sql)[0][0]
+        log.info(f'TQ: Requested to kill pid {tpid}')
+        if _tqCheckPID(tpid):
+            os.kill(tpid, signal.SIGTERM)
+
+
 def tqLs(pidfile: str, dbpath: str) -> None:
     '''
     List items in the tq database in pretty format. Fancy version of tqDumpDB
@@ -534,7 +556,7 @@ def tqDequeue(dbpath: str, id_: int) -> None:
     Do nothing if pid is not empty for sanity.
     '''
     if os.path.exists(dbpath):
-        sql = f'delete from tq where (pid is null) and (id = {id_})'
+        sql = f'delete from tq where ((pid is null) or (pid < 0)) and (id = {id_}) limit 1'
         log.info(f'TQ SQL update -- {sql}')
         dbExec(dbpath, sql)
 
@@ -611,6 +633,9 @@ def tqMain():
 
     elif sys.argv[1] == 'rm':
         tqDequeue(sqlite, int(sys.argv[2]))
+
+    elif sys.argv[1] == 'kill':
+        tqKill(pidfile, sqlite, int(sys.argv[2]))
 
     elif sys.argv[1] == 'db':
         tqDumpDB(sqlite)
