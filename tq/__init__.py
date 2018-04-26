@@ -28,15 +28,9 @@ Examples:
     4. Special Case: run the given task right away ignoring Pri and Rsc
      tq 1 0 -- sleep 100
 '''
-# ? FIXME: unify the tq*() interfaces and setup a argv->func mapping. this simplifies main function
-# ? FIXME: tidy up the logging
-# ? FIXME: tidy up the code
-# ? FIXME: put the ANSI excape code wrappers into a single Class or function
-# ? FIXME: replace the current argument parsing with argparse or alike. However the argument definition of TQ is somewhat abnormal ...
-# ? FIXME: tq autostart? I guess no.
-# ? FIXME: batch dbQuery
-# 0.4.2: delete notes when removing a task
-# 0.4.2: delete notes when cleaning database
+# ? FIXME: graceful argument parsing?
+# ? FIXME: tq autostart? I guess no. (wontfix)
+# ? FIXME: batch dbQuery (postponed)
 
 from pprint import pprint
 from typing import *
@@ -97,27 +91,27 @@ Apending Task:
 
 
 # Foreground color, normal
-def red(x): return re.sub('^(.*)$', '\033[0;31m\\1\033[;m', x)
-def green(x): return re.sub('^(.*)$', '\033[0;32m\\1\033[;m', x)
+def red(x):    return re.sub('^(.*)$', '\033[0;31m\\1\033[;m', x)
+def green(x):  return re.sub('^(.*)$', '\033[0;32m\\1\033[;m', x)
 def yellow(x): return re.sub('^(.*)$', '\033[0;33m\\1\033[;m', x)
-def blue(x): return re.sub('^(.*)$', '\033[0;34m\\1\033[;m', x)
+def blue(x):   return re.sub('^(.*)$', '\033[0;34m\\1\033[;m', x)
 def purple(x): return re.sub('^(.*)$', '\033[0;35m\\1\033[;m', x)
-def cyan(x): return re.sub('^(.*)$', '\033[0;36m\\1\033[;m', x)
-def white(x): return re.sub('^(.*)$', '\033[0;37m\\1\033[;m', x)
+def cyan(x):   return re.sub('^(.*)$', '\033[0;36m\\1\033[;m', x)
+def white(x):  return re.sub('^(.*)$', '\033[0;37m\\1\033[;m', x)
 # Foreground color, bold
-def Red(x): return re.sub('^(.*)$', '\033[1;31m\\1\033[;m', x)
-def Green(x): return re.sub('^(.*)$', '\033[1;32m\\1\033[;m', x)
+def Red(x):    return re.sub('^(.*)$', '\033[1;31m\\1\033[;m', x)
+def Green(x):  return re.sub('^(.*)$', '\033[1;32m\\1\033[;m', x)
 def Yellow(x): return re.sub('^(.*)$', '\033[1;33m\\1\033[;m', x)
-def Blue(x): return re.sub('^(.*)$', '\033[1;34m\\1\033[;m', x)
+def Blue(x):   return re.sub('^(.*)$', '\033[1;34m\\1\033[;m', x)
 def Purple(x): return re.sub('^(.*)$', '\033[1;35m\\1\033[;m', x)
-def Cyan(x): return re.sub('^(.*)$', '\033[1;36m\\1\033[;m', x)
-def White(x): return re.sub('^(.*)$', '\033[1;37m\\1\033[;m', x)
+def Cyan(x):   return re.sub('^(.*)$', '\033[1;36m\\1\033[;m', x)
+def White(x):  return re.sub('^(.*)$', '\033[1;37m\\1\033[;m', x)
 # background color
-def RedB(x): return re.sub('^(.*)$', '\033[1;41m\\1\033[;m', x)
+def RedB(x):   return re.sub('^(.*)$', '\033[1;41m\\1\033[;m', x)
 # other control sequences
-def Tset(x): return re.sub('^(.*)$', '\0337\\1', x)  # store location
-def Tcls(x): return re.sub('^(.*)$', '\033[K\\1', x)  # clear line
-def Tres(x): return re.sub('^(.*)$', '\\1\0338', x)  # restore location 
+def Tset(x):   return re.sub('^(.*)$', '\0337\\1', x)  # store location
+def Tcls(x):   return re.sub('^(.*)$', '\033[K\\1', x)  # clear line
+def Tres(x):   return re.sub('^(.*)$', '\\1\0338', x)  # restore location 
 def underline(x): return re.sub('^(.*)$', '\033[4m\\1\033[24m', x)
 
 
@@ -154,7 +148,16 @@ def dbQuery(dbpath: str, sql: str) -> List:
     return values
 
 
-def tqCreateDB(dbpath: str) -> None:
+def sqlPretty(sql: str) -> str:
+    '''
+    SQL statement formatter
+    '''
+    ret = re.sub('insert', '\n    sqlite3>  insert', sql)
+    ret = re.sub('value', '\n    sqlite3.. value', ret)
+    return ret
+
+
+def _tqCreateDB(dbpath: str) -> None:
     '''
     Create a sqlite3 database for Tq Daemon use.
     '''
@@ -162,24 +165,6 @@ def tqCreateDB(dbpath: str) -> None:
     dbExec(dbpath, sql)
     sql = 'create table notes (noteid, id, note)'
     dbExec(dbpath, sql)
-
-
-def sql_pretty(sql):
-    '''
-    SQL statement formatter
-    '''
-    ret = sql
-    pre = '    sqlite3 operation ...'
-    prompt = '    sqlite3>  '
-    prompt2 = '    sqlite3.. '
-    ret = ret.replace('select', pre+'\n'+prompt+'select')
-    ret = ret.replace('update', pre+'\n'+prompt+'update')
-    ret = ret.replace('insert', pre+'\n'+prompt+'insert')
-    ret = ret.replace('values', '\n'+prompt2+'values')
-    ret = ret.replace('where', '\n'+prompt2+'where')
-    ret = ret.replace('and', '\n'+prompt2+'and')
-    ret = ret.replace('or', '\n'+prompt2+'or')
-    return ret
 
 
 def daemonize(*, uid, pidfile,
@@ -318,7 +303,7 @@ def _tqDaemon(dbpath: str, pidfile: str) -> None:
 
     if not os.path.exists(dbpath):
         log.info(f'TQD is creating a new SQLite3 databse')
-        tqCreateDB(dbpath)
+        _tqCreateDB(dbpath)
     log.debug('TQD is keeping an eye on SQLite3 databse ...')
 
     def _daemonsleep() -> None:
@@ -356,12 +341,8 @@ def _tqDaemon(dbpath: str, pidfile: str) -> None:
 
         if len(todolist) > 0:  # there are works to do
             task = todolist[0]
-            log.debug(f'TQD[{os.getpid()}]: Next task scheduled -- {task}')
+            log.debug(f'TQD[{os.getpid()}]: Next task -- {task}')
             id_, pid, cwd, cmd, retval, stime, etime, pri, rsc = task
-
-            log.info(f'About to execute the next task -- {task}')
-            log.info('    cwd = {}'.format(cwd))
-            log.info('    cmd = {}'.format(cmd))
 
             # create a new worker process for this task
             worker = mp.Process(target=_tqWorker, args=(dbpath, task))
@@ -373,7 +354,7 @@ def _tqDaemon(dbpath: str, pidfile: str) -> None:
         workerpool = _tqWPrefresh(workerpool)
 
 
-def tqStart(pidfile, sqlite, logfile) -> None:
+def tqStart(pidfile: str, sqlite: str, logfile: str) -> None:
     '''
     Start the Tq Daemon for Task scheduling
     '''
@@ -437,7 +418,7 @@ def _tqCheckWorkerAlive(dbpath: str) -> bool:
         return True
 
 
-def tqStop(pidfile: str) -> None:
+def tqStop(pidfile: str, dbpath: str) -> None:
     '''
     Stop the Daemon
     '''
@@ -548,7 +529,7 @@ def tqPurge(pidfile: str, dbpath: str, logfile: str,
         print('[OK] Purging Tq database and log')
 
 
-def tqEnqueue(dbpath: str, *,
+def tqEnqueue(pidfile: str, dbpath: str, *,
               id_: int = 'null', pid='null', cwd: 'null', cmd: str, retval='null',
               stime: int = 'null', etime: int = 'null', pri: int = 0, rsc: int = 10) -> None:
     '''
@@ -570,11 +551,11 @@ def tqEnqueue(dbpath: str, *,
            ' (id, pid, cwd, cmd, retval, stime, etime, pri, rsc)' + \
            ' values' + \
           f' ({id_}, {pid}, "{cwd}", "{cmd}", {retval}, {stime}, {etime}, {pri}, {rsc})'
-    log.info(f'tqEnqueue: {sql_pretty(sql)}')
+    log.info(f'tqEnqueue: {sqlPretty(sql)}')
     dbExec(dbpath, sql)
 
 
-def tqDequeue(dbpath: str, id_: int) -> None:
+def tqDequeue(pidfile: str, dbpath: str, id_: int) -> None:
     '''
     Remove a task specified by id_ from Tq database.
     Do nothing if pid is not empty for sanity.
@@ -588,7 +569,7 @@ def tqDequeue(dbpath: str, id_: int) -> None:
         dbExec(dbpath, sql)
 
 
-def tqDumpDB(dbpath: str) -> None:
+def tqDumpDB(pidfile: str, dbpath: str) -> None:
     '''
     Dump database to screen. Raw version of tqLS.
     '''
@@ -603,7 +584,7 @@ def tqDumpDB(dbpath: str) -> None:
             print(x)
 
 
-def tqEdit(dbpath: str, id_: int, *, pri: int = 0, rsc: int = 10):
+def tqEdit(pidfile: str, dbpath: str, id_: int, *, pri: int = 0, rsc: int = 10):
     '''
     editing Pri and Rsc attributes
     '''
@@ -646,7 +627,7 @@ def tqDumpNotes(pidfile: str, dbpath: str) -> None:
         print(noteid, randcolor + symbol + '\033[m', f'Task[{id_}]', ':', note)
 
 
-def tqMain():
+def main():
     '''
     tq's main func. It parses command line argument and invoke specified
     functions of tq.
@@ -664,10 +645,17 @@ def tqMain():
     logfile = os.path.expanduser(f'~/.tqd_{uid}.log')
     pidfile = os.path.expanduser(f'~/.tqd_{uid}.pid')
 
+    # check (deal with accidents e.g. powerloss)
     _tqCheckAlive(pidfile)
     _tqCheckWorkerAlive(sqlite)
 
-    if len(sys.argv) < 2:
+    # [[ branchings
+
+    # -- 0 arg actions
+    if len(sys.argv) == 1 or sys.argv[1] == 'ls':
+        tqLs(pidfile, sqlite)
+
+    elif sys.argv[1] in ('-h', '--help'):
         tqUsage(sys.argv)
         if os.path.exists(pidfile):
             print('TQ daemon is \x1b[32;1mrunning\x1b[m.')
@@ -675,28 +663,30 @@ def tqMain():
             print('TQ daemon is \x1b[31;1mnot running\x1b[m.')
         raise SystemExit(1)
 
-    if sys.argv[1] == 'start':
+    elif sys.argv[1] == 'start':
         tqStart(pidfile, sqlite, logfile)
 
     elif sys.argv[1] == 'stop':
-        tqStop(pidfile)
+        tqStop(pidfile, sqlite)
 
     elif sys.argv[1] == 'log':
         if os.path.exists(logfile):
             with open(logfile, 'r') as log:
                 print(log.read())
 
-    elif sys.argv[1] == 'clean':
-        tqPurge(pidfile, sqlite, logfile, False)
+    elif sys.argv[1] == '_check':
+        print('check TQ daemon ...', _tqCheckAlive(pidfile))
+        print('check Workers   ...', _tqCheckWorkerAlive(sqlite))
 
-    elif sys.argv[1] == 'purge':
-        tqPurge(pidfile, sqlite, logfile, True)
+    elif sys.argv[1] in ('clean', 'purge'):
+        tqPurge(pidfile, sqlite, logfile, False if sys.argv[1] == 'clean' else True)
 
-    elif sys.argv[1] == 'ls':
-        tqLs(pidfile, sqlite)
+    elif sys.argv[1] == 'db':
+        tqDumpDB(pidfile, sqlite)
 
+    # -- 1 arg actions
     elif sys.argv[1] == 'rm':
-        tqDequeue(sqlite, int(sys.argv[2]))
+        tqDequeue(pidfile, sqlite, int(sys.argv[2]))
 
     elif sys.argv[1] == 'rmn':
         tqDelNote(pidfile, sqlite, int(sys.argv[2]))
@@ -704,25 +694,21 @@ def tqMain():
     elif sys.argv[1] == 'kill':
         tqKill(pidfile, sqlite, int(sys.argv[2]))
 
-    elif sys.argv[1] == 'db':
-        tqDumpDB(sqlite)
-
+    # -- 1+ arg actions
     elif sys.argv[1] == 'n' or sys.argv[1] == 'note':
         if len(sys.argv) == 2:
             tqDumpNotes(pidfile, sqlite)
         else:
             tqNote(pidfile, sqlite, int(sys.argv[2]), ' '.join(sys.argv[3:]))
 
-    elif sys.argv[1] == '_check':
-        print('check TQ daemon ...', _tqCheckAlive(pidfile))
-        print('check Workers   ...', _tqCheckWorkerAlive(sqlite))
-
+    # -- 2 arg actions
     elif len(sys.argv) == 4 and sys.argv[1] == 'pri':
-        tqEdit(sqlite, int(sys.argv[2]), pri=int(sys.argv[3]))
+        tqEdit(pidfile, sqlite, int(sys.argv[2]), pri=int(sys.argv[3]))
 
     elif len(sys.argv) == 4 and sys.argv[1] == 'rsc':
-        tqEdit(sqlite, int(sys.argv[2]), rsc=int(sys.argv[3]))
+        tqEdit(pidfile, sqlite, int(sys.argv[2]), rsc=int(sys.argv[3]))
 
+    # -- adding task
     elif len(sys.argv) >= 5 and sys.argv[3] == '--':
         # Special and powerful mode: specify priority and resource requirement
         pri, rsc = int(sys.argv[1]), int(sys.argv[2])
@@ -736,7 +722,7 @@ def tqMain():
         if not os.path.exists(pidfile):
             log.error('Tqd is not running, start tqd first.')
         else:
-            tqEnqueue(sqlite, cwd=cwd, cmd=cmd, pri=pri, rsc=rsc)
+            tqEnqueue(pidfile, sqlite, cwd=cwd, cmd=cmd, pri=pri, rsc=rsc)
 
     elif len(sys.argv) >= 4 and sys.argv[2] == '--':
         # specify P or R
@@ -755,7 +741,7 @@ def tqMain():
         if not os.path.exists(pidfile):
             log.error('Tqd is not running, start tqd first.')
         else:
-            tqEnqueue(sqlite, cwd=cwd, cmd=cmd, pri=pri, rsc=rsc)
+            tqEnqueue(pidfile, sqlite, cwd=cwd, cmd=cmd, pri=pri, rsc=rsc)
 
     elif sys.argv[1] == '--':
         cwd = os.getcwd()
@@ -768,15 +754,12 @@ def tqMain():
         if not os.path.exists(pidfile):
             log.error('Tqd is not running, start tqd first.')
         else:
-            tqEnqueue(sqlite, cwd=cwd, cmd=cmd)
+            tqEnqueue(pidfile, sqlite, cwd=cwd, cmd=cmd)
 
     else:
-        log.error('Unknown command {!r}'.format(sys.argv[1]))
+        log.error('Unknown command {!r}'.format(sys.argv[1:]))
         raise SystemExit(1)
 
 
-main = tqMain
-
-
 if __name__ == '__main__':
-    tqMain()
+    main()

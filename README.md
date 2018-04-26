@@ -30,6 +30,20 @@ tq本质上就是一个异常灵活的atd，可以用来安排执行一系列耗
 执行若干非独占的任务。队列的管理依赖于SQLite3数据库，每一个任务
 的各类信息，包括起止时间，都会被记录在其中。
 
+## Features
+
+1. TQ keeps your command in a queue and execute them one by one.
+
+2. Priority attribute is supported. The scheduler will execute high priority command lines first.
+
+3. Resource occupancy coefficient is supported. The scheduler will execute command lines in parallel as long as possible.
+
+4. The program output will be redirected to `tq.out` and `tq.err` under the directory where the task was added.
+
+5. The queue is saved in SQLite3. Won't lose any data even if a powerloss had happend.
+
+6. Dependency free and light weight. This tool only depends on python3 itself. (with SQLite3 support)
+
 ## Install
 
 This tools is available on Pypi. Just issue the following command:
