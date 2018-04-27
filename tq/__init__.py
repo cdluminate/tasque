@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# TQ (Task Queue), simple Command Line Job Manager, together with client utilities
+# TQ (Task Queue), simple Command Line Job Manager
 # COPYRIGHT (C) 2016-2018 Mo Zhou <cdluminate@gmail.com>
 # MIT License
 '''
@@ -28,9 +28,9 @@ Examples:
     4. Special Case: run the given task right away ignoring Pri and Rsc
      tq 1 0 -- sleep 100
 '''
-# ? FIXME: graceful argument parsing?
+# ? FIXME: graceful argument parsing? (postponed, not important)
 # ? FIXME: tq autostart? I guess no. (wontfix)
-# ? FIXME: batch dbQuery (postponed)
+# ? FIXME: batch dbQuery (postponed, not important)
 
 from pprint import pprint
 from typing import *
@@ -215,7 +215,7 @@ def daemonize(*, uid, pidfile,
 
     # Signal handler for termination (required)
     def sigterm_handler(signo, frame):
-        log.info('TQD recieved SIGTERM, exit.')
+        log.info(f'TQD[{os.getpid()}] recieved SIGTERM, exit.')
         raise SystemExit(1)
 
     signal.signal(signal.SIGTERM, sigterm_handler)
@@ -233,7 +233,7 @@ def _tqWorker(dbpath: str, task: tuple) -> None:
     # update database before working
     sql = f"update tq set pid = {pid}, stime = {time.time()}" \
         + f" where (id = {id_}) limit 1"
-    log.debug(f'Worker[{os.getpid()}]: SQL update -- {sql}')
+    log.info(f'Worker[{os.getpid()}]: SQL update -- {sql}')
     dbExec(dbpath, sql)
 
     try:
@@ -254,15 +254,13 @@ def _tqWorker(dbpath: str, task: tuple) -> None:
         tqout, tqerr = proc.communicate()
         retval = proc.returncode
     except FileNotFoundError as e:
-        log.error('    {}'.format(str(e)))
-        tqout, tqerr = '', ''
-        retval = -1
+        log.error(f'Worker[{os.getpid()}]: {str(e)}')
+        tqout, tqerr, retval = '', '', -1
     except Exception as e:
-        log.error(f'    {e}')
-        tqout, tqerr = '', ''
-        retval = -1
+        log.error(f'Worker[{os.getpid()}]: {str(e)}')
+        tqout, tqerr, retval = '', '', -1
     finally:
-        log.info(f'Worker[{os.getpid()}]: subprocess.Popen() task successfully returned.')
+        log.info(f'Worker[{os.getpid()}]: subprocess.Popen() successfully returned without exception.')
 
     os.chdir(cwd)
     if len(tqout) > 0:
@@ -275,7 +273,7 @@ def _tqWorker(dbpath: str, task: tuple) -> None:
     # update database after finishing the task
     sql = f"update tq set retval = {retval}, etime = {time.time()}," \
         + f"pid = null where (id = {id_}) limit 1"
-    log.debug(f'Worker[{os.getpid()}]: SQL update -- {sql}')
+    log.info(f'Worker[{os.getpid()}]: SQL update -- {sql}')
     dbExec(dbpath, sql)
     # don't remove pidfile! i.e. don't trigger atexit().
     os._exit(0)
@@ -299,12 +297,12 @@ def _tqDaemon(dbpath: str, pidfile: str) -> None:
     '''
     Tq's Daemon, the scheduler
     '''
-    log.info(f'TQD started with pid {os.getpid()}')
+    log.info(f'TQD[{os.getpid()}] Here we go! (Start)')
 
     if not os.path.exists(dbpath):
-        log.info(f'TQD is creating a new SQLite3 databse')
+        log.info(f'TQD[{os.getpid()}] is creating a new SQLite3 databse ...')
         _tqCreateDB(dbpath)
-    log.debug('TQD is keeping an eye on SQLite3 databse ...')
+    log.info(f'TQD[{os.getpid()}] is keeping an eye on SQLite3 databse ...')
 
     def _daemonsleep() -> None:
         time.sleep(1)
@@ -497,11 +495,12 @@ def tqLs(pidfile: str, dbpath: str) -> None:
     sql = f'select rsc from tq where (pid is not null) and (pid > 0)'
     arsc = 10 - sum(x[0] for x in dbQuery(dbpath, sql))
 
-    tqdstatus = White('❄') if not _tqCheckAlive(pidfile) else Green('☘')
+    tqdstatus = Green('☘') if _tqCheckAlive(pidfile) else White('❄')
     print(yellow('│ ') + tqdstatus + yellow(' │'),
           f'Stat: {stat_running:>2d} Running, {stat_wait:>2d} Waiting,',
           f'{stat_done:>2d} Done, {stat_accident:>2d} Accident,',
           f'{arsc:>2d} Rsc Avail.', '    ', yellow(' │'))
+    # last line
     print(yellow('└───┴'+'─'*73+'┘'))
 
 
@@ -512,6 +511,7 @@ def tqPurge(pidfile: str, dbpath: str, logfile: str,
     '''
     # cleanup entries in the database
     if os.path.exists(dbpath):
+        print(Tres(Tset('[..] Clean up finished tasks')), end='')
         sql = f'select id from tq where retval is not null'
         results = dbQuery(dbpath, sql)
         for id_ in [x[0] for x in results]:
@@ -519,6 +519,7 @@ def tqPurge(pidfile: str, dbpath: str, logfile: str,
             dbExec(dbpath, sql)
         sql = f'delete from tq where retval is not null'
         dbExec(dbpath, sql)
+        print('[OK] Clean up finished tasks')
     # remove all related file if tqd is not running
     if really and not os.path.exists(pidfile):
         print(Tres(Tset('[..] Purging Tq database and log')), end='')
@@ -552,7 +553,9 @@ def tqEnqueue(pidfile: str, dbpath: str, *,
            ' values' + \
           f' ({id_}, {pid}, "{cwd}", "{cmd}", {retval}, {stime}, {etime}, {pri}, {rsc})'
     log.info(f'tqEnqueue: {sqlPretty(sql)}')
+    print(Tres(Tset('[..] Adding new command line to the task queue')), end='')
     dbExec(dbpath, sql)
+    print('[OK] Adding new command line to the task queue')
 
 
 def tqDequeue(pidfile: str, dbpath: str, id_: int) -> None:
@@ -561,12 +564,14 @@ def tqDequeue(pidfile: str, dbpath: str, id_: int) -> None:
     Do nothing if pid is not empty for sanity.
     '''
     if os.path.exists(dbpath):
+        print(Tres(Tset('[..] Removing item from task queue')), end='')
         sql = f'delete from tq where ((pid is null) or (pid < 0)) and (id = {id_}) limit 1'
         log.info(f'TQ SQL update -- {sql}')
         dbExec(dbpath, sql)
         # also remove related notes
         sql = f'delete from notes where (id = {id_})'
         dbExec(dbpath, sql)
+        print('[OK] Removing item from task queue')
 
 
 def tqDumpDB(pidfile: str, dbpath: str) -> None:
@@ -651,8 +656,29 @@ def main():
 
     # [[ branchings
 
+    # -- many arguments -- add a task
+    if '--' in sys.argv:
+        # Special and powerful mode: specify priority and resource requirement
+        cmd, cwd = ' '.join(sys.argv[sys.argv.index('--'):][1:]), os.getcwd()
+        if len(cmd) == 0:
+            log.error('Task is Missing!')
+            raise SystemExit(1)
+
+        # parse P and R from arguments (this part is flexible)
+        prspec = ''.join(sys.argv[1:sys.argv.index('--')])
+        pri, rsc = 0, 10  # default numbers
+        if re.match('.*[pP].*', prspec):
+            pri = int(re.findall('[pP]([+-]*\d+)', prspec)[0])
+        if re.match('.*[rR].*', prspec):
+            rsc = int(re.findall('[rR]([+-]*\d+)', prspec)[0])
+
+        if not os.path.exists(sqlite):
+            log.error('TQD SQLite3 databse does not exist. Please start TQD.')
+        else:
+            tqEnqueue(pidfile, sqlite, cwd=cwd, cmd=cmd, pri=pri, rsc=rsc)
+
     # -- 0 arg actions
-    if len(sys.argv) == 1 or sys.argv[1] == 'ls':
+    elif len(sys.argv) == 1 or sys.argv[1] == 'ls':
         tqLs(pidfile, sqlite)
 
     elif sys.argv[1] in ('-h', '--help'):
@@ -695,67 +721,20 @@ def main():
         tqKill(pidfile, sqlite, int(sys.argv[2]))
 
     # -- 1+ arg actions
-    elif sys.argv[1] == 'n' or sys.argv[1] == 'note':
+    elif sys.argv[1] in ('note', 'n'):
         if len(sys.argv) == 2:
             tqDumpNotes(pidfile, sqlite)
         else:
             tqNote(pidfile, sqlite, int(sys.argv[2]), ' '.join(sys.argv[3:]))
 
     # -- 2 arg actions
-    elif len(sys.argv) == 4 and sys.argv[1] == 'pri':
+    elif len(sys.argv) == 4 and sys.argv[1] in ('pri', 'p'):
         tqEdit(pidfile, sqlite, int(sys.argv[2]), pri=int(sys.argv[3]))
 
-    elif len(sys.argv) == 4 and sys.argv[1] == 'rsc':
+    elif len(sys.argv) == 4 and sys.argv[1] in ('rsc', 'r'):
         tqEdit(pidfile, sqlite, int(sys.argv[2]), rsc=int(sys.argv[3]))
 
-    # -- adding task
-    elif len(sys.argv) >= 5 and sys.argv[3] == '--':
-        # Special and powerful mode: specify priority and resource requirement
-        pri, rsc = int(sys.argv[1]), int(sys.argv[2])
-        cwd = os.getcwd()
-        cmd = ' '.join(sys.argv[4:])
-
-        if len(cmd) == 0:
-            log.error('Task missing')
-            raise SystemExit(1)
-
-        if not os.path.exists(pidfile):
-            log.error('Tqd is not running, start tqd first.')
-        else:
-            tqEnqueue(pidfile, sqlite, cwd=cwd, cmd=cmd, pri=pri, rsc=rsc)
-
-    elif len(sys.argv) >= 4 and sys.argv[2] == '--':
-        # specify P or R
-        if sys.argv[1].startswith('p') or sys.argv[1].startswith('P'):
-            pri, rsc = int(sys.argv[1][1:]), 10
-        elif sys.argv[1].startswith('r') or sys.argv[1].startswith('R'):
-            pri, rsc = 0, int(sys.argv[1][1:])
-        else:
-            raise Exception('Unexpected argv[1]')
-
-        cwd, cmd = os.getcwd(), ' '.join(sys.argv[3:])
-        if len(cmd) == 0:
-            log.error('Task Missing')
-            raise SystemExit(1)
-
-        if not os.path.exists(pidfile):
-            log.error('Tqd is not running, start tqd first.')
-        else:
-            tqEnqueue(pidfile, sqlite, cwd=cwd, cmd=cmd, pri=pri, rsc=rsc)
-
-    elif sys.argv[1] == '--':
-        cwd = os.getcwd()
-        cmd = ' '.join(sys.argv[2:])
-
-        if len(cmd) == 0:
-            log.error('Task missing')
-            raise SystemExit(1)
-
-        if not os.path.exists(pidfile):
-            log.error('Tqd is not running, start tqd first.')
-        else:
-            tqEnqueue(pidfile, sqlite, cwd=cwd, cmd=cmd)
-
+    # -- what???
     else:
         log.error('Unknown command {!r}'.format(sys.argv[1:]))
         raise SystemExit(1)
