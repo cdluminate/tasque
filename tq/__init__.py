@@ -51,6 +51,9 @@ import sys
 import time
 import random
 
+# external dependencies
+import zstd
+
 
 def tqUsage(args: List) -> None:
     '''
@@ -263,12 +266,13 @@ def _tqWorker(dbpath: str, task: tuple) -> None:
         log.info(f'Worker[{os.getpid()}]: subprocess.Popen() successfully returned without exception.')
 
     os.chdir(cwd)
+    timestamp = time.strftime('%Y%m%d.%H%M%S')
     if len(tqout) > 0:
-        with open('tq.out', 'a+') as f:
-            f.write(tqout.decode())
+        with open(f'tq_{timestamp}_id-{id_}.stdout.zst', 'wb') as f:
+            f.write(zstd.dumps(tqout))
     if len(tqerr) > 0:
-        with open('tq.err', 'a+') as f:
-            f.write(tqerr.decode())
+        with open(f'tq_{timestamp}_id-{id_}.stderr.zst', 'wb') as f:
+            f.write(zstd.dumps(tqerr))
 
     # update database after finishing the task
     sql = f"update tq set retval = {retval}, etime = {time.time()}," \
