@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# TQ (Task Queue), simple Command Line Job Manager
+# TQ (Task Queue), Command Line Batch Job Manager
 # COPYRIGHT (C) 2016-2018 Mo Zhou <cdluminate@gmail.com>
 # MIT License
 '''
@@ -31,6 +31,10 @@ Examples:
 # ? FIXME: graceful argument parsing? (postponed, not important)
 # ? FIXME: tq autostart? I guess no. (wontfix)
 # ? FIXME: batch dbQuery (postponed, not important)
+# ? FIXME: delayed tasks. at TIME do STH, after TIME do STH. (wontfix, just sleep TIME; do something)
+# ? FIXME: update scheduler
+# ? FIXME: also report log path
+# ? FIXME: tq play <ID> to dump a log
 
 from pprint import pprint
 from typing import *
@@ -268,10 +272,10 @@ def _tqWorker(dbpath: str, task: tuple) -> None:
     os.chdir(cwd)
     timestamp = time.strftime('%Y%m%d.%H%M%S')
     if len(tqout) > 0:
-        with open(f'tq_{timestamp}_id-{id_}.stdout.zst', 'wb') as f:
+        with open(f'tq_id-{id_}_{timestamp}.stdout.zst', 'wb') as f:
             f.write(zstd.dumps(tqout))
     if len(tqerr) > 0:
-        with open(f'tq_{timestamp}_id-{id_}.stderr.zst', 'wb') as f:
+        with open(f'tq_id-{id_}_{timestamp}.stderr.zst', 'wb') as f:
             f.write(zstd.dumps(tqerr))
 
     # update database after finishing the task
