@@ -239,7 +239,7 @@ def _tqWorker(dbpath: str, task: tuple) -> None:
 
     # update database before working
     sql = f"update tq set pid = {pid}, stime = {time.time()}" \
-        + f" where (id = {id_}) limit 1"
+        + f" where (id = {id_})"
     log.info(f'Worker[{os.getpid()}]: SQL update -- {sql}')
     dbExec(dbpath, sql)
 
@@ -280,7 +280,7 @@ def _tqWorker(dbpath: str, task: tuple) -> None:
 
     # update database after finishing the task
     sql = f"update tq set retval = {retval}, etime = {time.time()}," \
-        + f"pid = null where (id = {id_}) limit 1"
+        + f"pid = null where (id = {id_})"
     log.info(f'Worker[{os.getpid()}]: SQL update -- {sql}')
     dbExec(dbpath, sql)
     # don't remove pidfile! i.e. don't trigger atexit().
@@ -417,7 +417,7 @@ def _tqCheckWorkerAlive(dbpath: str) -> bool:
         else:
             xids = [workers[i][0] for i, st in enumerate(wkstat) if not st]
             for id_ in xids:
-                sql = f'update tq set pid = {-1} where (id = {id_}) limit 1'
+                sql = f'update tq set pid = {-1} where (id = {id_})'
                 dbExec(dbpath, sql)
             return False
     else:
@@ -573,7 +573,7 @@ def tqDequeue(pidfile: str, dbpath: str, id_: int) -> None:
     '''
     if os.path.exists(dbpath):
         print(Tres(Tset('[..] Removing item from task queue')), end='')
-        sql = f'delete from tq where ((pid is null) or (pid < 0)) and (id = {id_}) limit 1'
+        sql = f'delete from tq where ((pid is null) or (pid < 0)) and (id = {id_})'
         log.info(f'TQ SQL update -- {sql}')
         dbExec(dbpath, sql)
         # also remove related notes
