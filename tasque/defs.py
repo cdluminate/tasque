@@ -12,9 +12,9 @@ Note = namedtuple('Note', NOTE_FIELDS)
 
 # TASQUE_DB is the key variable.
 if os.getenv('TASQUE_DB') is not None:
-    TASQUE_DB = os.expanduser(os.getenv('TASQUE_DB'))
+    TASQUE_DB = os.path.expanduser(os.getenv('TASQUE_DB'))
 else:
-    TASQUE_DB = os.expanduser('~/.tasque/tasq.db')
+    TASQUE_DB = os.path.expanduser('~/.tasque/tasq.db')
 
 # the rest TASQUE_* variables are auto-configured according to TASQUE_DB
 TASQUE_DIR = os.path.dirname(TASQUE_DB)

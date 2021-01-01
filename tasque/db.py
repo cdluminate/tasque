@@ -3,6 +3,7 @@ import re
 import sqlite3
 import sys
 import rich
+import pathlib
 from . import defs
 
 
@@ -17,6 +18,7 @@ class tqDB:
         '''
         if os.path.exists(self.dbpath):
             return None
+        path = pathlib.Path(self.dbpath).parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self.dbpath)
         sql = f'CREATE TABLE {defs.DB_TABLE_TASQUE} ({defs.TASK_FIELDS})'
         conn.execute(sql)
