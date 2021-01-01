@@ -7,3 +7,4 @@ Task = namedtuple('Task', TASK_FIELDS)
 DB_TABLE_NOTES = 'notes'
 NOTE_FIELDS = 'noteid, id, note'
 Note = namedtuple('Note', NOTE_FIELDS)
+
