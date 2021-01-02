@@ -1,6 +1,7 @@
 import os
 import sys
 import re
+from . import defs
 from .client import tqClient
 import rich
 import time
@@ -17,6 +18,7 @@ Subcommands:
        t|task          Manage tasks (e.g. add/delete/clear)
        n|note          Manage notes (e.g. add/delete)
        l|ls|list       List task queue
+       log             Dump log
        dump            Dump database
     '''
     c.print(USAGE)
@@ -55,6 +57,11 @@ def ls(argv):
 def dump(argv):
     client = tqClient()
     client.dump()
+
+def log(argv):
+    with open(defs.TASQUE_LOG) as f:
+        log = f.read()
+    c.print(log)
 
 def daemon(argv):
     client = tqClient()
@@ -105,6 +112,8 @@ def main(argv = sys.argv[1:]):
         note(argv[1:])
     elif any(argv[0] == x for x in ('t', 'task')):
         task(argv[1:])
+    elif 'log' == argv[0]:
+        log(argv[1:])
     elif 'dump' == argv[0]:
         dump(argv[1:])
     else:

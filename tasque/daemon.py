@@ -130,7 +130,6 @@ class tqD:
             # Assessment: should I be idle?
             R = self.db[f'select id, pri from tq where (pid is "null") and (retval is "null")']
             if not R:
-                self.log.info(f'{self.__name__} Resource: {self.resource.book}')
                 self.refresh_workerpool()
                 self.idle()
                 continue
@@ -146,7 +145,7 @@ class tqD:
                 self.resource.request(task.id, task.rsc)
                 self.resource.acquire[task.id]()
                 # spawn the worker process
-                self.log.info(f'{self.__name__}[{os.getpid}] Next task: {str(task)}')
+                self.log.info(f'{self.__name__}[{os.getpid()}] Next task: {str(task)}')
                 # create a new worker process for this task
                 worker = mp.Process(target=tasqueWorker,
                         args=(self.db, self.log, task))
@@ -169,14 +168,14 @@ def tasqueWorker(
     pid = os.getpid()
     # update database before working
     sql = f"update tq set pid = {pid}, stime = {time.time()} where (id = {task.id})"
-    log.info(f'worker[{os.getpid()}]: SQL(pre) -- {sql}')
+    log.info(f'worker[{os.getpid()}]: SQL(pre-task) -- {sql}')
     db(sql)
     # trying to start task
     try:
         # change directory, fork and execute the task.
         os.chdir(task.cwd)
         cmd = shlex.split(task.cmd)
-        log.info(f'Command: {str(cmd)}')
+        log.info(f'worker[{os.getpid()}] Command: {str(cmd)}')
         proc = subprocess.Popen(
             cmd, shell=False, stdin=None,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=task.cwd)
@@ -207,7 +206,7 @@ def tasqueWorker(
             f.write(zstd.dumps(stdout))
     # update database after finishing the task
     sql = f"update tq set retval = {retval}, etime = {time.time()}, pid = null where (id = {task.id})"
-    log.info(f'worker[{os.getpid()}]: SQL(post) -- {sql}')
+    log.info(f'worker[{os.getpid()}]: SQL(post-task) -- {sql}')
     db(sql)
     # END
     log.info(f'worker[{os.getpid()}]: end gracefully.')
