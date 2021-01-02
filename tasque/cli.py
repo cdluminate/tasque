@@ -12,8 +12,10 @@ def usage():
 
     Usage: tq
     '''
+    client = tqClient()
     md = rich.markdown.Markdown(USAGE)
     c.print(md)
+    c.print('TASQUE daemon running?', client.isdaemonalive())
 
 def task(argv):
     raise NotImplementedError()

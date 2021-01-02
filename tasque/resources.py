@@ -3,6 +3,12 @@ RESOURCE_DEFAULT = 'virtual'
 RESOURCE_TYPES = (RESOURCE_DEFAULT, 'cpu', 'memory', 'gpu', 'vmem')
 
 class AbstractResource:
+    def __init__(self):
+        '''
+        Attributes:
+            self.book: tracking resource assignment
+        '''
+        self.book = dict()
     def avail(self) -> float:
         '''
         Total amount of available specific <kind> of resource.
@@ -18,32 +24,36 @@ class AbstractResource:
         wait until <rsc> of resource can be allocated. does indeed block.
         '''
         raise NotImplementedError(f'is there <{rsc}>?')
-    def request(self, rsc: float) -> callable:
+    def request(self, pid: int, rsc: float) -> (callable, callable):
         '''
-        generate a callback function for allocating the requested resource
+        generate callback functions for allocating the requested resource
         '''
-        def alloc():
+        def acquire():
             raise NotImplementedError('how to allocate resource?')
-        return alloc
+        def release():
+            raise NotImplementedError('how to release resource?')
+        return (acquire, release)
 
 class VirtualResource(AbstractResource):
     '''
     Virtual resource. (default)
     '''
-    def avail(self):
-        return math.inf
+    def avail(self) -> float:
+        return math.nan
     def canalloc(self, rsc: float) -> bool:
-        return rsc <= self.avail()
+        return not self.book.keys()
     def waitfor(self, rsc: float) -> None:
         return None
-    def request(self, rsc: float) -> callable:
-        def alloc():
-            pass
-        return alloc
+    def request(self, pid: int, rsc: float) -> (callable, callable):
+        def acquire():
+            self.book[pid] = rsc
+        def release():
+            self.book.pop(pid)
+        return (acquire, release)
 
-class Resource:
+def create(name: str):
     '''
-    factory class
+    factory function
     '''
     mapping = {
             RESOURCE_DEFAULT: VirtualResource,
@@ -52,16 +62,4 @@ class Resource:
             'gpu': AbstractResource,
             'vmem': AbstractResource,
             }
-    def __init__(self, name: str = None):
-        '''
-        create a factory
-        '''
-        self.name = name
-    def create(self, name: str = None):
-        if name is not None:
-            return self.mapping[name]()
-        elif self.name is not None:
-            return self.mapping[self.name]()
-        else:
-            raise ValueError('create what?')
-
+    return self.mapping[name]()

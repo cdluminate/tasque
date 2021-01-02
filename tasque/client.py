@@ -121,6 +121,21 @@ class tqClient:
         '''
         self.db.dump()
 
+    def isdaemonalive(self) -> bool:
+        '''
+        Check if TQD is alive given the pidfile.
+        '''
+        if os.path.exists(defs.TASQUE_PID):
+            with open(defs.TASQUE_PID) as f:
+                pid = int(f.read())
+            if utils.checkpid(pid):
+                return True
+            else:
+                # process does not exist
+                os.remove(defs.TASQUE_PID)
+                return False
+        else:
+            return False
 
 
 # def tqEdit(pidfile: str, dbpath: str, id_: int, *, pri: int = 0, rsc: int = 10):
@@ -229,3 +244,24 @@ class tqClient:
 #     print(yellow('└───┴'+'─'*73+'┘'))
 # 
 # 
+
+# def _tqCheckWorkerAlive(dbpath: str) -> bool:
+#     '''
+#     Check if the "running" workers are alive.
+#     Set pid to -1 to indicate abnormal behaviour.
+#     '''
+#     if os.path.exists(dbpath):
+#         sql = 'select id, pid from tq where (not pid is null) and (retval is null)'
+#         workers = dbQuery(dbpath, sql)
+#         wkstat = [_tqCheckPID(pid) for id_, pid in workers]
+#         if all(wkstat):
+#             return True
+#         else:
+#             xids = [workers[i][0] for i, st in enumerate(wkstat) if not st]
+#             for id_ in xids:
+#                 sql = f'update tq set pid = {-1} where (id = {id_})'
+#                 dbExec(dbpath, sql)
+#             return False
+#     else:
+#         return True
+
