@@ -140,6 +140,7 @@ class tqClient:
             return False
 
     def start(self):
+        c.log('Starting tqD ...')
         tqd = daemon.tqD()
         tqd.Start()
 

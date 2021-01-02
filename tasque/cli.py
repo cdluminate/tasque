@@ -3,19 +3,25 @@ import sys
 import re
 from .client import tqClient
 import rich
+import time
 import rich.markdown
 c = rich.get_console()
 
 def usage():
+    c.print('[bold]TASQUE :: Zero-Config Single-Node Workload Manager[/bold]')
     USAGE = f'''
-    TASQUE -- Zero-Config Single-Node Workload Manager
-
-    Usage: tq
+Usage: tq <subcommand> \[action] \[arguments]
+       tq \[specifiers] -- <command-line-to-submit>
+Subcommands:
+       d|daemon        Manage the daemon/scheduler (e.g. start/stop)
+       t|task          Manage tasks (e.g. add/delete/clear)
+       n|note          Manage notes (e.g. add/delete)
+       l|ls|list       List task queue
+       dump            Dump database
     '''
+    c.print(USAGE)
     client = tqClient()
-    md = rich.markdown.Markdown(USAGE)
-    c.print(md)
-    c.print('TASQUE daemon running?', client.isdaemonalive())
+    c.print('TASQUE daemon is running?', client.isdaemonalive())
 
 def task(argv):
     if len(argv) == 0:
@@ -53,6 +59,13 @@ def dump(argv):
 def daemon(argv):
     client = tqClient()
     if not argv:
+        c.print('''\
+Usage: tq daemon <action> \[arguments]
+Actions:
+       start         Start daemon
+       stop          Stop daemon
+       restart       Restart daemon
+                ''')
         c.log('TASQUE daemon is running?', client.isdaemonalive())
     elif argv[0] == 'start':
         daemon_start(argv[1:])
@@ -60,6 +73,7 @@ def daemon(argv):
         daemon_stop(argv[1:])
     elif argv[0] == 'restart':
         daemon_stop(argv[1:])
+        time.sleep(1)
         daemon_start(argv[1:])
     else:
         raise ValueError(argv)
