@@ -18,7 +18,15 @@ def usage():
     c.print('TASQUE daemon running?', client.isdaemonalive())
 
 def task(argv):
-    raise NotImplementedError()
+    if len(argv) == 0:
+        print('usage')
+        exit(0)
+    if argv[0] == 'clear':
+        task_clear(argv[1:])
+
+def task_clear(argv):
+    client = tqClient()
+    client.clear()
 
 def shorthand_task_add(argv):
     '''
@@ -33,6 +41,10 @@ def shorthand_task_add(argv):
 def note(argv):
     raise NotImplementedError()
 
+def ls(argv):
+    client = tqClient()
+    c.log('listing task queue')
+    c.print(client.db['tq'])
 
 def dump(argv):
     client = tqClient()
@@ -60,32 +72,31 @@ def daemon_stop(argv):
     client = tqClient()
     client.stop()
 
-def main(argv):
+def main(argv = sys.argv[1:]):
     '''
     entrance
     '''
     # dispatch
     if len(argv) == 0:
         usage()
+    elif any(argv[0] == x for x in ('-h', '--help')):
+        usage()
     elif '--' in argv:
         shorthand_task_add(argv)
+    elif any(argv[0] == x for x in ('l', 'ls', 'list')):
+        ls(argv[1:])
     elif any(argv[0] == x for x in ('d', 'daemon')):
         daemon(argv[1:])
     elif any(argv[0] == x for x in ('n', 'note')):
         note(argv[1:])
+    elif any(argv[0] == x for x in ('t', 'task')):
+        task(argv[1:])
     elif 'dump' == argv[0]:
         dump(argv[1:])
     else:
         raise ValueError('unable to understand the given arguments')
 
 #def main():
-#    # get some info and paths
-#    uid, cwd = os.getuid(), os.getcwd()
-#
-#    # check (deal with accidents e.g. powerloss)
-#    _tqCheckAlive(pidfile)
-#    _tqCheckWorkerAlive(sqlite)
-#
 #    # [[ branchings
 #
 #    # -- many arguments -- add a task

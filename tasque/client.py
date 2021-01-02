@@ -72,7 +72,7 @@ class tqClient:
         '''
         cleanup finished entries in the database
         '''
-        results = self.db[f'select id from tq where (retval is not null)']
+        results = self.db[f'select id from tq where (retval is not "null")']
         for taskid in [x[0] for x in results]:
             self.db(f'delete from notes where (id = {taskid})')
         self.db(f'delete from tq where retval is not null')
