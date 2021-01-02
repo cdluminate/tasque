@@ -5,12 +5,13 @@ Tasque -- Zero-Config Single-Node Workload Manager
 
 <!-- ![tqls1](tqls1.png) -->
 
-Tasque (Task Queue) is a simple workload manager for single-node usage that
-can be used out-of-box. It is resource-aware (e.g. CPU, Memory, GPU,
-Video Memory), and can automatically schedule the submitted jobs in a
-sensible way. It is much more light-weight compared to cluster workload
-managers such as Slurm and PBS, while being much smarter than a casually
-rushed script using tmux, screen, or alike.
+Tasque (Task Queue) is a simple workload manager for single-node usage that can
+be used out-of-box. It is resource-aware (e.g. CPU, Memory, GPU, Video Memory),
+and can automatically schedule the submitted jobs in a sensible way. It is much
+more light-weight compared to cluster workload managers such as Slurm and PBS,
+while being much smarter than a casually rushed script using tmux, screen, or
+alike. Tasque is written by the author for scheduling batches of machine
+learning experiments (e.g. caffe, pytorch, tensorflow).
 
 Tasque has the following characteristics:
 1. Submitted jobs (command lines) will be automatically scheduled to run when
@@ -24,9 +25,6 @@ scheduled to run in parallel.
 powerloss.
 6. Users can assign text annotations with the tasks in database.
 7. Requires no configuration and can be used out-of-box.
-
-Tasque is written by the author for scheduling batches of machine learning experiments
-(e.g. caffe, pytorch, tensorflow).
 
 ## Example
 
