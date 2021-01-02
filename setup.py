@@ -1,14 +1,14 @@
 from setuptools import setup, find_packages
 
 setup(name='tq1',
-      version='0.4.6',
-      description='Simple Command Line Job Manager',
+      version='0.90.0~alpha',
+      description='Zero-Config Single-Node Workload Manager',
       long_description=open('./README.md', 'r').read(),
       long_description_content_type='text/markdown',
-      url='https://github.com/CDLuminate/tq',
+      url='https://github.com/CDLuminate/tasque',
       author='Mo Zhou',
-      author_email='cdluminate@gmail.com',
+      author_email='lumin@debian.org',
       license='MIT',
-      packages=['tq'],
-      entry_points={'console_scripts': ['tq=tq:main']},
+      packages=['tasque'],
+      entry_points={'console_scripts': ['tq=tasque.cli:main']},
       )
