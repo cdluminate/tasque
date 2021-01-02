@@ -76,9 +76,9 @@ class tqClient:
         self.db(f'delete from tq where retval is not null')
         c.log('cleared (either correctly or incorrectly) finished tasks.')
 
-    def enqueue(self, taskid: int = 'null', pid: int ='null',
-            cwd: str = 'null', cmd: str = None, retval: str ='null',
-            stime: int = 'null', etime: int = 'null',
+    def enqueue(self, taskid: int = None, pid: int =None,
+            cwd: str = None, cmd: str = None, retval: str =None,
+            stime: int = None, etime: int = None,
             pri: int = 0, rsc: float = None) -> None:
         '''
         Enqueue a task into tq database. One must provide (cwd, cmd)
@@ -97,9 +97,11 @@ class tqClient:
         id_ = max(ids)+1 if len(ids) > 0 else 1
         if cmd is None:
             raise ValueError('must provide a valid cmd')
-        task = defs.Task._make([id_, pid, cwd, cmd, retval, stime, etime, pri, rsc])
-        c.log('Enqueue:', task)
+        task = defs.Task._make([
+            'null' if v is None else v for v in
+            (id_, pid, cwd, cmd, retval, stime, etime, pri, rsc)])
         with c.status('Adding new task to the queue ...'):
+            c.log('Enqueue:', task)
             self.db += task
 
     def dequeue(self, id_: int):
@@ -117,7 +119,6 @@ class tqClient:
         '''
         Dump database to screen. Raw version of tqLS.
         '''
-        c.log('dumping task queue and notes')
         self.db.dump()
 
 

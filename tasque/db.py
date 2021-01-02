@@ -90,6 +90,9 @@ class tqDB:
         Dump database to screen. Raw version of tqLS.
         '''
         c = rich.get_console()
+        c.log('dumping configurations')
         c.print(self[defs.DB_TABLE_CONFIG])
+        c.log('dumping tasks')
         c.print(self[defs.DB_TABLE_TASQUE])
+        c.log('dumping notes')
         c.print(self[defs.DB_TABLE_NOTES])
