@@ -1,60 +1,36 @@
-TQ -- Simple Command Line Job Manager
+Tasque -- Zero-Config Single-Node Workload Manager
 ===
 
 [![Latest Version](https://pypip.in/version/tq1/badge.svg)](https://pypi.python.org/pypi/tq1/)
 
-![tqls1](tqls1.png)
+<!-- ![tqls1](tqls1.png) -->
 
-#### Description in English:
+Tasque (Task Queue) is a simple workload manager for single-node usage that
+can be used out-of-box. It is resource-aware (e.g. CPU, Memory, GPU,
+Video Memory), and can automatically schedule the submitted jobs in a
+sensible way. It is much more light-weight compared to cluster workload
+managers such as Slurm and PBS, while being much smarter than a casually
+rushed script using tmux, screen, or alike.
 
-TQ (Task Queue) is a simple Command Line Job Manager. In principle TQ is
-a very flexible and smart atd(8), which could arrange a series of jobs in
-an efficient way.
+Tasque has the following characteristics:
+1. Submitted jobs (command lines) will be automatically scheduled to run when
+there is enough resource to do so.
+2. The daemon is resource-aware, namely it is able to plan the usage of either
+CPU, Memory, GPU, or Video memory. When resource is aboundant, tasks may be
+scheduled to run in parallel.
+3. The default behavior is to execute the given commands in the FTFO order.
+4. Tasks with high priority values will be scheduled to run prior to the rest.
+5. The queue is stored in an SQLite3 database, and will not be lost in case of
+powerloss.
+6. Users can assign text annotations with the tasks in database.
+7. Requires no configuration and can be used out-of-box.
 
-(1) By default TQ will run the jobs one by one in the FIFO order.
+Tasque is written by the author for scheduling batches of machine learning experiments
+(e.g. caffe, pytorch, tensorflow).
 
-(2) A job with high priority will be processed earlier.
+## Example
 
-(3) Given the estimated occupancy coefficient, jobs can be executed in
-    parallel as long as possible.
-
-The management of job queue is based on SQLite3 database, in which
-information about every job, including the start and end time, is stored.
-
-#### 中文描述(Description in Chinese):
-
-在一位大佬的怂恿下，我把自己炼丹用的队列管理器tq传到了pypi上。
-tq本质上就是一个异常灵活的atd，可以用来安排执行一系列耗时的命令。
-默认情况下tq会串行（FIFO）执行给定的任务队列。如果指定了优先级
-或者预计资源占用比，tq还能根据情况优先执行高优先任务，或者并行
-执行若干非独占的任务。队列的管理依赖于SQLite3数据库，每一个任务
-的各类信息，包括起止时间，都会被记录在其中。
-
-## Features
-
-1. TQ keeps your command in a queue and execute them one by one.
-
-2. Priority attribute is supported. The scheduler will execute high priority command lines first.
-
-3. Resource occupancy coefficient is supported. The scheduler will execute command lines in parallel as long as possible.
-
-4. The program output will be redirected to `tq.out` and `tq.err` under the directory where the task was added.
-
-5. The queue is saved in SQLite3. Won't lose any data even if a powerloss had happend.
-
-6. Dependency free and light weight. This tool only depends on python3 itself. (with SQLite3 support)
-
-## Install
-
-This tools is available on Pypi. Just issue the following command:
-```
-pip3 install tq1
-```
-Note that `python3 >= 3.6` is required due to new language features used
-in the code. There is no plan to support lower version of python.
-
-## Real-Life Example
-
+<!--
 TQ can be used to deal with some commands in an async manner. e.g.
 ```
 $ tq -- git push  # Doesn't block. Have it done in async.
@@ -75,9 +51,26 @@ $ tq p10 -- python3 important_train.py
 One can just put many computation tasks in the queue, and TQ will smartly
 schedule these experiments according to the given priority and resource
 occupancy parameters.
+-->
+
+## Installation
+
+This tools is available on Pypi. Just issue the following command:
+```
+pip3 install tq1
+```
+Note that some new language features may be used in the code.
+There is no plan to support older versions of python3.
+Hence `python3 >= 3.8` is recommended.
+
+In case you want to install it from source:
+```
+python3 setup.py install
+```
 
 ## Usage
 
+<!--
 ```
 Usage: tq ACTION [COMMAND_ARGS]
        tq [P R] -- TASK
@@ -100,33 +93,11 @@ Apending Task:
                    int P default  0 range [INT_MIN, INT_MAX], large=important
                    int R detault 10 range [1,       10],      large=consuming
 ```
+-->
 
-## Usage Examples
+## Copyright and License
 
 ```
-0. Daemon: to start or stop the daemon
-     tq start
-     tq stop
-1. Serial: the two given tasks should be executed one by one
-     tq -- sleep 100
-     tq -- sleep 100
-2. Parallel: each task occupies 40% of resource.
-   In this example two tasks will be active at the same time.
-     tq r4 -- sleep 100
-     tq r4 -- sleep 100
-     tq r4 -- sleep 100
-3. Priority: break the FIFO order of tasks. 1 > default Priority.
-     tq p1 -- sleep 100
-4. Special Case: run the given task right away ignoring Pri and Rsc
-     tq 1 0 -- sleep 100
+Copyright (C) 2016-2021 Mo Zhou <lumin@debian.org>
+Released under the MIT/Expat License.
 ```
-
-## See Also
-
-atd(8), HTCondor, Torque, Slurm, PBS.
-
-https://wiki.debian.org/HighPerformanceComputing
-
-## License
-
-MIT License.
