@@ -53,7 +53,7 @@ def dump(argv):
 def daemon(argv):
     client = tqClient()
     if not argv:
-        c.print('TASQUE daemon is running?', client.isdaemonalive())
+        c.log('TASQUE daemon is running?', client.isdaemonalive())
     elif argv[0] == 'start':
         daemon_start(argv[1:])
     elif argv[0] == 'stop':

@@ -109,12 +109,14 @@ class tqD:
     def refresh_workerpool(self):
         # cleanup the worker pool regularly, removing dead workers
         wp_ = []
-        for w in self.workerpool:
+        for (taskid, w) in self.workerpool:
             if w.is_alive():
-                wp_.append(w)
+                wp_.append((taskid, w))
             else:
                 w.join(timeout=3)
                 w.terminate()
+                if taskid in self.resource.book:
+                    self.resource.release[taskid]()
         self.workerpool = wp_
 
     def daemonLoop(self):
@@ -128,6 +130,7 @@ class tqD:
             # Assessment: should I be idle?
             R = self.db[f'select id, pri from tq where (pid is "null") and (retval is "null")']
             if not R:
+                self.log.info(f'{self.__name__} Resource: {self.resource.book}')
                 self.refresh_workerpool()
                 self.idle()
                 continue
@@ -140,13 +143,16 @@ class tqD:
                 # can we allocate the required resource?
                 if not self.resource.canalloc(task.rsc):
                     continue
+                self.resource.request(task.id, task.rsc)
+                self.resource.acquire[task.id]()
                 # spawn the worker process
                 self.log.info(f'{self.__name__}[{os.getpid}] Next task: {str(task)}')
                 # create a new worker process for this task
                 worker = mp.Process(target=tasqueWorker,
-                        args=(self.db, self.log, self.resource, task))
-                self.workerpool.append(worker)
+                        args=(self.db, self.log, task))
+                self.workerpool.append((task.id, worker))
                 worker.start()
+                break
             # cleanup the worker pool regularly, removing dead workers
             self.refresh_workerpool()
             self.idle()
@@ -154,7 +160,6 @@ class tqD:
 def tasqueWorker(
         db: db.tqDB,
         log: object,
-        resource: resources.AbstractResource,
         task: defs.Task,
         ):
     '''
@@ -162,9 +167,6 @@ def tasqueWorker(
     (id, pid, cwd, cmd, retval, stime, etime, pri, rsc)
     '''
     pid = os.getpid()
-    # allocate resource
-    acquire, release = resource.request(pid, task.rsc)
-    acquire()
     # update database before working
     sql = f"update tq set pid = {pid}, stime = {time.time()} where (id = {task.id})"
     log.info(f'worker[{os.getpid()}]: SQL(pre) -- {sql}')
@@ -182,7 +184,6 @@ def tasqueWorker(
         def sigterm_handler(signo, frame):
             log.info(f'worker[{os.getpid()}] recieved SIGTERM. Gracefully pulling down task process...')
             proc.kill()
-            release()
             os._exit(0)
         signal.signal(signal.SIGTERM, sigterm_handler)
         # override daemon's atexit action
@@ -199,7 +200,6 @@ def tasqueWorker(
     finally:
         log.info(f'worker[{os.getpid()}]: subprocess.Popen() successfully returned.')
     # write the stdout (stderr was redirected here)
-    release()
     os.chdir(defs.TASQUE_DIR)
     timestamp = time.strftime('%Y%m%d.%H%M%S')
     if len(stdout) > 0:

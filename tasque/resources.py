@@ -9,6 +9,8 @@ class AbstractResource:
             self.book: tracking resource assignment
         '''
         self.book = dict()
+        self.acquire = dict()
+        self.release = dict()
     def avail(self) -> float:
         '''
         Total amount of available specific <kind> of resource.
@@ -44,12 +46,9 @@ class VirtualResource(AbstractResource):
         return (0 == len(self.book))
     def waitfor(self, rsc: float) -> None:
         return None
-    def request(self, pid: int, rsc: float) -> (callable, callable):
-        def acquire():
-            self.book[pid] = rsc
-        def release():
-            self.book.pop(pid)
-        return (acquire, release)
+    def request(self, pid: int, rsc: float) -> None:
+        self.acquire[pid] = lambda: self.book.__setitem__(pid, rsc)
+        self.release[pid] = lambda: self.book.pop(pid)
 
 def create(name: str):
     '''
