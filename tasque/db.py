@@ -5,6 +5,7 @@ import sys
 import rich
 import pathlib
 from . import defs
+from . import resources
 
 
 class tqDB:
@@ -28,6 +29,9 @@ class tqDB:
         conn.execute(sql)
         conn.commit()
         conn.close()
+        # insert configurations
+        self.exec(f'INSERT INTO {defs.DB_TABLE_CONFIG} ({defs.CONFIG_FIELDS})'
+                + f' VALUES ("resource", "{resources.RESOURCE_DEFAULT}")')
 
     def exec(self, sql: str) -> None:
         '''

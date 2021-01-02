@@ -41,7 +41,7 @@ class VirtualResource(AbstractResource):
     def avail(self) -> float:
         return math.nan
     def canalloc(self, rsc: float) -> bool:
-        return not self.book.keys()
+        return (0 == len(self.book))
     def waitfor(self, rsc: float) -> None:
         return None
     def request(self, pid: int, rsc: float) -> (callable, callable):
@@ -62,4 +62,4 @@ def create(name: str):
             'gpu': AbstractResource,
             'vmem': AbstractResource,
             }
-    return self.mapping[name]()
+    return mapping[name]()

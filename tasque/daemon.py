@@ -21,12 +21,15 @@ from . import defs
 from . import db
 from . import utils
 from . import resources
-
+DEBUGGING = True
+if DEBUGGING:
+    import q
 
 class tqD:
     '''
     Tasque Daemon. In charge of scheduling and spawning task processes.
     '''
+    __name__ = 'tqD'
 
     def __init__(self, *,
             uid:int=os.getuid(),
@@ -37,22 +40,26 @@ class tqD:
             ):
         self.db = db.tqDB(defs.TASQUE_DB)
         self.uid = uid
+        self.pidfile = pidfile
         self.stdin = stdin
         self.stdout = stdout
         self.stderr = stderr
-        self.log = logging.basicConfig(
+        logging.basicConfig(
                 filename=defs.TASQUE_LOG,
-                encoding='utf-8',
+                format='%(levelno)s %(asctime)s %(process)d %(filename)s:%(lineno)d] %(message)s',
                 level=logging.DEBUG)
+        self.log = logging
         self.workerpool = list()
         self.config = dict(self.db['config'])
-        self.resource = resources.create(config[resources.RESOURCE_DEFAULT])
+        self.resource = resources.create(self.config['resource'])
         self.idle = lambda: time.sleep(1)
 
     def Start(self):
         '''
         Start the Tq Daemon for Task scheduling
         '''
+        if os.path.exists(self.pidfile):
+           raise RuntimeError('Another process is already running')
         self.log.info(f'starting {self.__name__} ...')
         try:
             self.daemonize()
@@ -65,8 +72,6 @@ class tqD:
         '''
         Turn into a Daemon
         '''
-        if os.path.exists(self.pidfile):
-           raise RuntimeError('Another process is already running')
         # First fork (detaches from parent)
         try:
            if os.fork() > 0:
@@ -94,15 +99,26 @@ class tqD:
            os.dup2(f.fileno(), sys.stderr.fileno())
         # Write the PID file
         os.system('touch {}'.format(self.pidfile))
-        with open(pidfile, 'w+') as f:
+        with open(self.pidfile, 'w+') as f:
            print(os.getpid(), file=f)
         # Arrange to have the PID file removed on exit/signal
-        atexit.register(lambda: os.remove(pidfile))
+        atexit.register(lambda: os.remove(self.pidfile))
         # Signal handler for termination (required)
         def sigterm_handler(signo, frame):
            self.log.info(f'{self.__name__}[{os.getpid()}] exiting on SIGTERM.')
            raise SystemExit(1)
         signal.signal(signal.SIGTERM, sigterm_handler)
+
+    def refresh_workerpool(self):
+        # cleanup the worker pool regularly, removing dead workers
+        wp_ = []
+        for w in self.workerpool:
+            if w.is_alive():
+                wp_.append(w)
+            else:
+                w.join(timeout=3)
+                w.terminate()
+        self.workerpool = wp_
 
     def daemonLoop(self):
         '''
@@ -113,36 +129,34 @@ class tqD:
 
         while True:
             # Assessment: should I be idle?
-            R = self.db[f'select id, pri from tq where (pid is null) and (retval is null)']
+            R = self.db[f'select id, pri from tq where (pid is "null") and (retval is "null")']
             if not R:
+                self.refresh_workerpool()
                 self.idle()
                 continue
             # find the highest priority among pending jobs
             hpri = max(x[1] for x in R) if len(R)>0 else 0
             # traverse the task list of priority <pri> that we can run
-            R = self.db[f'select * from tq where (pid is null) and (retval is null) and (pri = {hpri}) order by id']
+            R = self.db[f'select * from tq where (pid is "null") and (retval is "null") and (pri = {hpri}) order by id']
             tasks = [defs.Task._make(r) for r in R]
             for task in tasks:
                 # can we allocate the required resource?
                 if not self.resource.canalloc(task.rsc):
+                    if DEBUGGING: q('cannot alloc for', task)
                     continue
+                if DEBUGGING: q('can alloc for', task)
                 # spawn the worker process
-                self.log(f'{self.__name__}[{os.getpid}] Next task: {str(task)}')
+                self.log.info(f'{self.__name__}[{os.getpid}] Next task: {str(task)}')
                 # create a new worker process for this task
                 worker = mp.Process(target=tasqueWorker,
                         args=(self.db, self.log, self.resource, task))
                 self.workerpool.append(worker)
                 worker.start()
+                if DEBUGGING: q('started worker', task)
             # cleanup the worker pool regularly, removing dead workers
-            wp_ = []
-            for w in self.workerpool:
-                if w.is_alive():
-                    wp_.append(w)
-                else:
-                    w.join(timeout=3)
-                    w.terminate()
-            self.workerpool = wp_
+            self.refresh_workerpool()
             self.idle()
+            if DEBUGGING: q('worker pool', self.workerpool)
 
 def tasqueWorker(
         db: db.tqDB,
@@ -160,15 +174,17 @@ def tasqueWorker(
     acquire()
     # update database before working
     sql = f"update tq set pid = {pid}, stime = {time.time()} where (id = {task.id})"
-    log.info(f'worker[{os.getpid()}]: SQL -- {sql}')
+    log.info(f'worker[{os.getpid()}]: SQL(pre) -- {sql}')
     db(sql)
     # trying to start task
     try:
         # change directory, fork and execute the task.
-        os.chdir(tas.cwd)
+        os.chdir(task.cwd)
+        cmd = shlex.split(task.cmd)
+        log.info(f'Command: {str(cmd)}')
         proc = subprocess.Popen(
-            shlex.split(task.cmd), shell=False, stdin=None,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=cwd)
+            cmd, shell=False, stdin=None,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=task.cwd)
         # override daemon's sigaction handler
         def sigterm_handler(signo, frame):
             log.info(f'worker[{os.getpid()}] recieved SIGTERM. Gracefully pulling down task process...')
@@ -180,6 +196,7 @@ def tasqueWorker(
         atexit.register(lambda: None)
         # If nothing goes wrong, we'll get the content of stdout and stderr
         stdout, _ = proc.communicate()
+        if DEBUGGING: q(stdout)
         retval = proc.returncode
     except FileNotFoundError as e:
         log.error(f'worker[{os.getpid()}]: {str(e)}')
@@ -188,15 +205,18 @@ def tasqueWorker(
         log.error(f'worker[{os.getpid()}]: {str(e)}')
         stdout, retval = '', '', -1
     finally:
-        release()
         log.info(f'worker[{os.getpid()}]: subprocess.Popen() successfully returned.')
     # write the stdout (stderr was redirected here)
+    release()
+    if DEBUGGING: q('back to tasque dir')
     os.chdir(defs.TASQUE_DIR)
     timestamp = time.strftime('%Y%m%d.%H%M%S')
-    with open(f'tq_id-{id_}_{timestamp}.stdout.zst', 'wb') as f:
-        f.write(zstd.dumps(stdout))
+    if len(stdout) > 0:
+        with open(f'tq_id-{task.id}_{timestamp}.stdout.zst', 'wb') as f:
+            f.write(zstd.dumps(stdout))
     # update database after finishing the task
     sql = f"update tq set retval = {retval}, etime = {time.time()}, pid = null where (id = {task.id})"
-    log.info(f'worker[{os.getpid()}]: SQL -- {sql}')
+    log.info(f'worker[{os.getpid()}]: SQL(post) -- {sql}')
     db(sql)
     # END
+    log.info(f'worker[{os.getpid()}]: end gracefully.')

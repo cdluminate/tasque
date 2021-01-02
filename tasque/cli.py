@@ -38,6 +38,28 @@ def dump(argv):
     client = tqClient()
     client.dump()
 
+def daemon(argv):
+    client = tqClient()
+    if not argv:
+        c.print('TASQUE daemon is running?', client.isdaemonalive())
+    elif argv[0] == 'start':
+        daemon_start(argv[1:])
+    elif argv[0] == 'stop':
+        daemon_stop(argv[1:])
+    elif argv[0] == 'restart':
+        daemon_stop(argv[1:])
+        daemon_start(argv[1:])
+    else:
+        raise ValueError(argv)
+
+def daemon_start(argv):
+    client = tqClient()
+    client.start()
+
+def daemon_stop(argv):
+    client = tqClient()
+    client.stop()
+
 def main(argv):
     '''
     entrance
@@ -47,6 +69,8 @@ def main(argv):
         usage()
     elif '--' in argv:
         shorthand_task_add(argv)
+    elif any(argv[0] == x for x in ('d', 'daemon')):
+        daemon(argv[1:])
     elif any(argv[0] == x for x in ('n', 'note')):
         note(argv[1:])
     elif 'dump' == argv[0]:

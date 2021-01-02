@@ -18,6 +18,8 @@ import time
 import random
 from . import db
 from . import defs
+from . import daemon
+from . import utils
 import rich
 c = rich.get_console()
 
@@ -137,6 +139,9 @@ class tqClient:
         else:
             return False
 
+    def start(self):
+        tqd = daemon.tqD()
+        tqd.Start()
 
 # def tqEdit(pidfile: str, dbpath: str, id_: int, *, pri: int = 0, rsc: int = 10):
 #     '''
