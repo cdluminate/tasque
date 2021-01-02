@@ -21,9 +21,6 @@ from . import defs
 from . import db
 from . import utils
 from . import resources
-DEBUGGING = True
-if DEBUGGING:
-    import q
 
 class tqD:
     '''
@@ -142,9 +139,7 @@ class tqD:
             for task in tasks:
                 # can we allocate the required resource?
                 if not self.resource.canalloc(task.rsc):
-                    if DEBUGGING: q('cannot alloc for', task)
                     continue
-                if DEBUGGING: q('can alloc for', task)
                 # spawn the worker process
                 self.log.info(f'{self.__name__}[{os.getpid}] Next task: {str(task)}')
                 # create a new worker process for this task
@@ -152,11 +147,9 @@ class tqD:
                         args=(self.db, self.log, self.resource, task))
                 self.workerpool.append(worker)
                 worker.start()
-                if DEBUGGING: q('started worker', task)
             # cleanup the worker pool regularly, removing dead workers
             self.refresh_workerpool()
             self.idle()
-            if DEBUGGING: q('worker pool', self.workerpool)
 
 def tasqueWorker(
         db: db.tqDB,
@@ -196,7 +189,6 @@ def tasqueWorker(
         atexit.register(lambda: None)
         # If nothing goes wrong, we'll get the content of stdout and stderr
         stdout, _ = proc.communicate()
-        if DEBUGGING: q(stdout)
         retval = proc.returncode
     except FileNotFoundError as e:
         log.error(f'worker[{os.getpid()}]: {str(e)}')
@@ -208,7 +200,6 @@ def tasqueWorker(
         log.info(f'worker[{os.getpid()}]: subprocess.Popen() successfully returned.')
     # write the stdout (stderr was redirected here)
     release()
-    if DEBUGGING: q('back to tasque dir')
     os.chdir(defs.TASQUE_DIR)
     timestamp = time.strftime('%Y%m%d.%H%M%S')
     if len(stdout) > 0:
