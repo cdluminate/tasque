@@ -2,6 +2,10 @@ from collections import namedtuple
 import os
 
 # Data Definition
+DB_TABLE_CONFIG = 'config'
+CONFIG_FIELDS = 'key, value'
+Config = namedtuple('Config', CONFIG_FIELDS)
+
 DB_TABLE_TASQUE = 'tq'
 TASK_FIELDS = 'id, pid, cwd, cmd, retval, stime, etime, pri, rsc'
 Task = namedtuple('Task', TASK_FIELDS)

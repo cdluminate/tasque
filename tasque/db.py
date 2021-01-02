@@ -20,6 +20,8 @@ class tqDB:
             return None
         path = pathlib.Path(self.dbpath).parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self.dbpath)
+        sql = f'CREATE TABLE {defs.DB_TABLE_CONFIG} ({defs.CONFIG_FIELDS})'
+        conn.execute(sql)
         sql = f'CREATE TABLE {defs.DB_TABLE_TASQUE} ({defs.TASK_FIELDS})'
         conn.execute(sql)
         sql = f'CREATE TABLE {defs.DB_TABLE_NOTES} ({defs.NOTE_FIELDS})'
@@ -35,6 +37,9 @@ class tqDB:
         conn.execute(sql)
         conn.commit()
         conn.close()
+
+    def __call__(self, sql: str) -> None:
+        self.exec(sql)
 
     def __iadd__(self, item: object) -> object:
         if isinstance(item, str):
@@ -65,6 +70,9 @@ class tqDB:
         elif sql == defs.DB_TABLE_NOTES:
             return list(map(defs.Note._make,
                 self[f'select * from {defs.DB_TABLE_NOTES}']))
+        elif sql == defs.DB_TABLE_CONFIG:
+            return list(map(defs.Config._make,
+                self[f'select * from {defs.DB_TABLE_CONFIG}']))
         conn = sqlite3.connect(self.dbpath)
         cursor = conn.cursor()
         cursor.execute(sql)
@@ -82,5 +90,6 @@ class tqDB:
         Dump database to screen. Raw version of tqLS.
         '''
         c = rich.get_console()
+        c.print(self[defs.DB_TABLE_CONFIG])
         c.print(self[defs.DB_TABLE_TASQUE])
         c.print(self[defs.DB_TABLE_NOTES])
