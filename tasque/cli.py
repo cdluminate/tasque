@@ -16,7 +16,7 @@ Usage: tq <subcommand> \[action] \[arguments]
 Subcommands:
        d|daemon        Manage the daemon/scheduler (e.g. start/stop)
        t|task          Manage tasks (e.g. add/delete/clear)
-       n|note          Manage notes (e.g. add/delete)
+       a|annotate      Manage task annotations (e.g. add/delete)
        l|ls|list       List task queue
        log             Dump log
        dump            Dump database
@@ -24,17 +24,6 @@ Subcommands:
     c.print(USAGE)
     client = tqClient()
     c.print('TASQUE daemon is running?', client.isdaemonalive())
-
-def task(argv):
-    if len(argv) == 0:
-        print('usage')
-        exit(0)
-    if argv[0] == 'clear':
-        task_clear(argv[1:])
-
-def task_clear(argv):
-    client = tqClient()
-    client.clear()
 
 def shorthand_task_add(argv):
     '''
@@ -46,13 +35,39 @@ def shorthand_task_add(argv):
     cmd = ' '.join(argv[argv.index('--')+1:])
     client.enqueue(cwd=cwd, cmd=cmd)
 
-def note(argv):
-    raise NotImplementedError()
+def task(argv):
+    client = tqClient()
+    def task_clear(argv):
+        client.clear()
+    if len(argv) == 0:
+        print('usage')
+        exit(0)
+    if argv[0] == 'clear':
+        task_clear(argv[1:])
+
+def annotate(argv):
+    client = tqClient()
+    def annotate_add(argv):
+        client.annotate(int(argv[0]), ' '.join(argv[1:]))
+    def annotate_del(argv):
+        client.delannotation(int(argv[0]))
+    def annotate_dump(argv):
+        client.dumpannotation()
+    if len(argv) == 0:
+        c.print('TODO: annotate usage')
+    elif any(x == argv[0] for x in ('a', 'add')):
+        annotate_add(argv[1:])
+    elif any(x == argv[0] for x in ('d', 'del', 'delete', 'r', 'rm', 'remove')):
+        annotate_remove(argv[1:])
+    elif argv[0] == 'dump':
+        annotate_dump(argv[1:])
+    else:
+        raise ValueError(argv)
+
 
 def ls(argv):
     client = tqClient()
-    c.log('listing task queue')
-    c.print(client.db['tq'])
+    client.tqls()
 
 def dump(argv):
     client = tqClient()
@@ -108,8 +123,8 @@ def main(argv = sys.argv[1:]):
         ls(argv[1:])
     elif any(argv[0] == x for x in ('d', 'daemon')):
         daemon(argv[1:])
-    elif any(argv[0] == x for x in ('n', 'note')):
-        note(argv[1:])
+    elif any(argv[0] == x for x in ('n', 'note', 'a', 'ann', 'annotate')):
+        annotate(argv[1:])
     elif any(argv[0] == x for x in ('t', 'task')):
         task(argv[1:])
     elif 'log' == argv[0]:
