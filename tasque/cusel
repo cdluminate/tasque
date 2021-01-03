@@ -1,0 +1,102 @@
+#!/usr/bin/python3
+'''
+Blocking CUDA Device Selector
+
+Usage: cusel [-m mem]
+
+Without cusel:
+
+    $ gpustat  # (then manually decide the card to use)
+    $ CUDA_VISISBLE_DEVICES=5 python3 train.py
+
+With cusel:
+
+    1. wait for a card with 11000MB idle memory and automatically select it
+    $ CUDA_VISIBLE_DEVICES=$(cusel) python3 train.py
+
+    2. wait for a card with 4000MB idle memory and automatically select it
+    $ CUDA_VISIBLE_DEVICES=$(cusel -m4000) python3 train.py
+
+Hints:
+
+    1. It is suggested to enable nvidia-persistenced to speed up selection.
+
+Copyright (C) 2020 Mo Zhou <lumin@debian.org>
+License: MIT/Expat
+'''
+from typing import Union
+import os
+import time
+import argparse
+import csv
+import fcntl
+import subprocess as sp
+from collections import namedtuple
+import contextlib
+
+Card = namedtuple('Card', 'index, memory_total, memory_used, memory_free')
+
+
+@contextlib.contextmanager
+def openlock(*args, **kwargs):
+    lock = open(*args, **kwargs)
+    fcntl.lockf(lock, fcntl.LOCK_EX)
+    try:
+        yield lock
+    finally:
+        fcntl.lockf(lock, fcntl.LOCK_UN)
+        lock.close()
+
+
+def __getCards(exclude: list = []) -> list[Card]:
+    '''
+    Get a list of GPU status tuples.
+    '''
+    cmd = '''
+nvidia-smi
+--format=csv,noheader,nounits
+--query-gpu=index,memory.total,memory.used,memory.free
+    '''.strip().replace('\n', ' ').split(' ')
+    stat = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.PIPE
+                    ).communicate()[0].decode().strip()
+    cards = [Card._make(map(int, line))
+             for line in csv.reader(stat.split('\n'))]
+    if exclude:
+        cards = [card for card in cards if card.index not in exclude]
+    return cards
+
+
+def __selectCard(cards: dict, mem: int) -> Union[int, None]:
+    '''
+    Select a card. This function does not block.
+    '''
+    clist = sorted(cards, key=lambda x: x.memory_used)
+    for card in clist:
+        if card.memory_free >= mem:
+            return card.index
+    return None
+
+
+if __name__ == '__main__':
+
+    os.putenv('CUDA_DEVICE_ORDER', 'PCI_BUS_ID')
+
+    ag = argparse.ArgumentParser()
+    ag.add_argument('-m', type=int, default=11000, help='how much memory (MB)')
+    ag.add_argument('-i', type=int, default=15, help='polling interval')
+    ag.add_argument('--exclude', type=int, default=[], nargs='+',
+                    help='exclude gpu indices')
+    ag.add_argument('--lock', type=str, default='/tmp/cusel.lock')
+    ag = ag.parse_args()
+
+    # Acquire lock (concurrent cusel)
+    with openlock(ag.lock, 'w+'):
+        # Polling cards
+        while True:
+            cards = __getCards(ag.exclude)
+            sel = __selectCard(cards, ag.m)
+            if sel is not None:
+                print(sel)
+                break
+            else:
+                time.sleep(ag.i)
