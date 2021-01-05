@@ -204,7 +204,7 @@ class tqClient:
         '''
         tasks = self.db['select * from tq']
         notes = self.db['select id, note from notes']
-        cprint('┌───┬'+'─'*73+'┐', 'yellow')
+        cprint('╭───┬'+'─'*73+'╮', 'yellow')
         for k, task in enumerate(tasks, 1):
             taskid, pid, cwd, cmd, retval, stime, etime, pri, rsc = task
             taskid, pid, retval, stime, etime, pri = map(
@@ -257,4 +257,4 @@ class tqClient:
               f'{stat_done:>2d} Done, {stat_accident:>2d} Accident.',
               '                  ', colored(' │', 'yellow'))
         # last line
-        cprint('└───┴'+'─'*73+'┘', 'yellow')
+        cprint('╰───┴'+'─'*73+'╯', 'yellow')
