@@ -73,7 +73,7 @@ class VirtualResource(AbstractResource):
     def avail(self) -> float:
         return 1.0
     def canalloc(self, rsc: float) -> bool:
-        return (rsc <= sum(self.book.values()))
+        return (rsc <= self.avail() - sum(self.book.values()))
     def waitfor(self, rsc: float) -> None:
         while not self.canalloc(rsc):
             self.idle()

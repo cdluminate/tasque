@@ -104,7 +104,7 @@ class tqClient:
     def enqueue(self, taskid: int = None, pid: int = None,
             cwd: str = None, cmd: str = None, retval: str = None,
             stime: int = None, etime: int = None,
-            pri: int = 0, rsc: float = 0.0) -> None:
+            pri: int = 0, rsc: float = 1.0) -> None:
         '''
         Enqueue a task into tq database. One must provide (cwd, cmd)
 
@@ -124,7 +124,6 @@ class tqClient:
             raise ValueError('must provide a valid cmd')
         task = defs.Task._make(utils.none2null(
             (taskid, pid, cwd, cmd, retval, stime, etime, pri, rsc)))
-        print(task)
         with c.status('Adding new task to the queue ...'):
             c.log('Enqueue:', task)
             self.db += task
