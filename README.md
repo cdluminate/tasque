@@ -1,4 +1,4 @@
-Tasque -- Zero-Config Single-Node Workload Manager
+Tasque -- Zero-Config Single-Node Workload Manager (WORK IN PROGRESS)
 ===
 
 [![Latest Version](https://pypip.in/version/tq1/badge.svg)](https://pypi.python.org/pypi/tq1/)
