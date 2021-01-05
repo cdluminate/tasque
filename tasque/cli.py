@@ -5,6 +5,7 @@ License: MIT/Expat
 
 import os
 import sys
+import argparse
 import re
 from . import defs
 from .client import tqClient
@@ -37,8 +38,16 @@ def shorthand_task_add(argv):
     client = tqClient()
     uid = os.getuid()
     cwd = os.getcwd()
+    # parse arg
+    ag = argparse.ArgumentParser()
+    ag.add_argument('-p', '--pri', type=int, default=0,
+            help='priority of the given task')
+    ag.add_argument('-r', '--rsc', type=float, default=0,
+            help='resource to allocate for the given task')
+    ag = ag.parse_args(argv[:argv.index('--')])
+    # parse cmd
     cmd = ' '.join(argv[argv.index('--')+1:])
-    client.enqueue(cwd=cwd, cmd=cmd)
+    client.enqueue(cwd=cwd, cmd=cmd, pri=ag.pri, rsc=ag.rsc)
 
 def task(argv):
     client = tqClient()
