@@ -1,5 +1,6 @@
 from . import defs
 from . import db
+from . import cuda_selector
 from . import resources
 from . import utils
 from . import daemon

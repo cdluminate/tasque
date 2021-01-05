@@ -1,5 +1,18 @@
 import math
 import os
+import contextlib
+import fcntl
+
+
+@contextlib.contextmanager
+def openlock(*args, **kwargs):
+    lock = open(*args, **kwargs)
+    fcntl.lockf(lock, fcntl.LOCK_EX)
+    try:
+        yield lock
+    finally:
+        fcntl.lockf(lock, fcntl.LOCK_UN)
+        lock.close()
 
 
 def sec2hms(s: float) -> str:

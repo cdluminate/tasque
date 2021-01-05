@@ -72,6 +72,7 @@ class VirtualResource(AbstractResource):
         self.acquire[pid] = lambda: self.book.__setitem__(pid, rsc)
         self.release[pid] = lambda: self.book.pop(pid)
 
+
 class GpuResource(AbstractResource):
     '''
     GPU (CUDA) Resource. Allocate cards (as a whole) for the requestors.
