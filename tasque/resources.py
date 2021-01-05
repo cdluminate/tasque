@@ -102,8 +102,9 @@ class GpuResource(AbstractResource):
     def request(self, pid: int, rsc: float) -> None:
         # currently only support allocating 1 card at a time.
         assert(int(rsc) == 1)
-        exclude = set(self.book.values())
-        selcard = random.choice(self.cusel.availCards())
+        cards = self.cusel.availCards()
+        cards = [card for card in cards if card.index not in self.book.values()]
+        cards = random.choice(cards)
         def acquire():
             os.putenv('CUDA_VISIBLE_DEVICES', str(selcard.index))
             self.book[pid] = selcard.index
