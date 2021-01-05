@@ -6,6 +6,8 @@ License: MIT/Expat
 import os
 import math
 import time
+import random
+from .cuda_selector import CudaSelector
 RESOURCE_DEFAULT = 'void'
 RESOURCE_TYPES = (RESOURCE_DEFAULT, 'virtual', 'cpu', 'memory', 'gpu', 'vmem')
 if str(os.getenv('TASQUE_RESOURCE', '')):
@@ -87,9 +89,26 @@ class GpuResource(AbstractResource):
     GPU (CUDA) Resource. Allocate cards (as a whole) for the requestors.
     We only consider a card "available" when >=97% video memory is free.
     '''
-    def __init__(self):
-        super(GpuResource, self).__init__()
-        raise NotImplementedError()
+    cusel = CudaSelector()
+    def avail(self) -> float:
+        # Number of available cards
+        return float(len(cusel.availCards()))
+    def canalloc(self, rsc: float) -> bool:
+        # available cards
+        cards = self.cusel.availCards()
+        # excluding those registered in self.book
+        cards = [card for card in cards if card.index not in self.book.values()]
+        return len(cards) > 0
+    def request(self, pid: int, rsc: float) -> None:
+        # currently only support allocating 1 card at a time.
+        assert(int(rsc) == 1)
+        exclude = set(self.book.values())
+        selcard = random.choice(self.cusel.availCards())
+        def acquire():
+            os.putenv('CUDA_VISIBLE_DEVICES', str(selcard.index))
+            self.book[pid] = selcard.index
+        self.acquire[pid] = acquire
+        self.release[pid] = lambda: self.book.pop(pid)
 
 class VmemResource(AbstractResource):
     '''
@@ -99,9 +118,25 @@ class VmemResource(AbstractResource):
     coarse-grained GPU allocation such as Slurm(CUDA) which allocate each
     card as a whole to the requestors.
     '''
-    def __init__(self):
-        super(VmemResource, self).__init__()
-        raise NotImplementedError()
+    cusel = CudaSelector()
+    def avail(self) -> float:
+        cards = self.cusel.getCards()
+        return float(sum(card.memory_free for card in cards))
+    def canalloc(self, rsc: float) -> bool:
+        # First round: cards that have enough free memory
+        cards = self.cusel.getCards()
+        cards = [card for card in cards if card.memory_free >= rsc]
+        # Second round: remove cards that have been allocated in the book
+        cards = [card for card in cards if card.index not in self.book.values()]
+        return len(cards) > 0
+    def request(self, pid: int, rsc: float) -> None:
+        exclude = self.book.values()
+        device_index = self.cusel.selectCard(rsc, exclude=exclude)
+        def acquire():
+            os.putenv('CUDA_VISIBLE_DEVICES', str(device_index))
+            self.book[pid] = rsc
+        self.acquire[pid] = acquire
+        self.release[pid] = lambda: self.book.pop(pid)
 
 class CpuResource(AbstractResource):
     def __init__(self):
