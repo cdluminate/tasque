@@ -1,3 +1,8 @@
+'''
+Copyright (C) 2016-2021 Mo Zhou <lumin@debian.org>
+License: MIT/Expat
+'''
+
 import rich
 from rich.traceback import install
 install()

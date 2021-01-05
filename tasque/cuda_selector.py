@@ -1,3 +1,8 @@
+'''
+Copyright (C) 2020-2021 Mo Zhou <lumin@debian.org>
+License: MIT/Expat
+'''
+
 from typing import List, Union
 from . import utils
 import csv
