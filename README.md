@@ -6,7 +6,7 @@ Tasque -- Zero-Config Single-Node Workload Manager
 <!-- ![tqls1](tqls1.png) -->
 
 Tasque (Task Queue) is a simple workload manager for single-node usage that can
-be used out-of-box. It is resource-aware (e.g. CPU, Memory, GPU, Video Memory),
+be used out-of-the-box. It is resource-aware (e.g. CPU, Memory, GPU, Video Memory),
 and can automatically schedule the submitted jobs in a sensible way. It is much
 more light-weight compared to cluster workload managers such as Slurm and PBS,
 while being much smarter than a casually rushed script using tmux, screen, or
@@ -19,12 +19,12 @@ there is enough resource to do so.
 2. The daemon is resource-aware, namely it is able to plan the usage of either
 CPU, Memory, GPU, or Video memory. When resource is aboundant, tasks may be
 scheduled to run in parallel.
-3. The default behavior is to execute the given commands in the FTFO order.
+3. The default behavior is to execute the given commands in the FIFO order.
 4. Tasks with high priority values will be scheduled to run prior to the rest.
 5. The queue is stored in an SQLite3 database, and will not be lost in case of
 powerloss.
 6. Users can assign text annotations with the tasks in database.
-7. Requires no configuration and can be used out-of-box.
+7. Requires no configuration and can be used out-of-the-box.
 
 ## Example
 
