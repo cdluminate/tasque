@@ -98,7 +98,7 @@ class tqClient:
         results = self.db[f'select id from tq where (retval is not "null")']
         for taskid in [x[0] for x in results]:
             self.db(f'delete from notes where (id = {taskid})')
-        self.db(f'delete from tq where (retval is not null)')
+        self.db(f'delete from tq where (retval is not "null")')
         c.log('cleared (either correctly or incorrectly) finished tasks.')
 
     def enqueue(self, taskid: int = None, pid: int = None,
