@@ -3,10 +3,14 @@ Copyright (C) 2016-2021 Mo Zhou <lumin@debian.org>
 License: MIT/Expat
 '''
 
+import os
 import math
 import time
 RESOURCE_DEFAULT = 'void'
 RESOURCE_TYPES = (RESOURCE_DEFAULT, 'virtual', 'cpu', 'memory', 'gpu', 'vmem')
+if str(os.getenv('TASQUE_RESOURCE', '')):
+    RESOURCE_DEFAULT = str(os.getenv('TASQUE_RESOURCE'))
+
 
 class AbstractResource:
     def __init__(self):

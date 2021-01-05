@@ -14,23 +14,6 @@ import time
 import rich.markdown
 c = rich.get_console()
 
-def usage():
-    c.print('[bold]TASQUE :: Zero-Config Single-Node Workload Manager[/bold]')
-    USAGE = f'''
-Usage: tq <subcommand> \[action] \[arguments]
-       tq \[specifiers] -- <command-line-to-submit>
-Subcommands:
-       d|daemon        Manage the daemon/scheduler (e.g. start/stop)
-       t|task          Manage tasks (e.g. add/delete/clear)
-       a|annotate      Manage task annotations (e.g. add/delete)
-       l|ls|list       List task queue
-       log             Dump log
-       dump            Dump database
-    '''
-    c.print(USAGE)
-    client = tqClient()
-    c.print('TASQUE daemon is running?', client.isdaemonalive())
-
 def shorthand_task_add(argv):
     '''
     special shorthand for task_add
@@ -79,6 +62,10 @@ def annotate(argv):
         raise ValueError(argv)
 
 
+def config(argv):
+    client = tqClient()
+    client.config(argv[0], argv[1])
+
 def ls(argv):
     client = tqClient()
     client.tqls()
@@ -122,6 +109,24 @@ def daemon_stop(argv):
     client = tqClient()
     client.stop()
 
+def usage():
+    c.print('[bold]TASQUE :: Zero-Config Single-Node Workload Manager[/bold]')
+    USAGE = f'''
+Usage: tq <subcommand> \[action] \[arguments]
+       tq \[specifiers] -- <command-line-to-submit>
+Subcommands:
+       d|daemon        Manage the daemon/scheduler (e.g. start/stop)
+       t|task          Manage tasks (e.g. add/delete/clear)
+       a|annotate      Manage task annotations (e.g. add/delete)
+       l|ls|list       List task queue
+       c|config        Config daemon
+       log             Dump log
+       dump            Dump database
+    '''
+    c.print(USAGE)
+    client = tqClient()
+    c.print('TASQUE daemon is running?', client.isdaemonalive())
+
 def main(argv = sys.argv[1:]):
     '''
     entrance
@@ -141,6 +146,8 @@ def main(argv = sys.argv[1:]):
         annotate(argv[1:])
     elif any(argv[0] == x for x in ('t', 'task')):
         task(argv[1:])
+    elif any(argv[0] == x for x in ('c', 'conf', 'config')):
+        config(argv[1:])
     elif 'log' == argv[0]:
         log(argv[1:])
     elif 'dump' == argv[0]:

@@ -202,6 +202,17 @@ class tqClient:
         if rsc is not None:
             self.db(f'UPDATE tq SET rsc = {rsc} WHERE (id = {taskid}) limit 1')
 
+    def config(self, key: str, value: str):
+        '''
+        edit config in the database
+        '''
+        if key in [x[0] for x in self.db['config']]:
+            sql = f'UPDATE config SET value = "{value}" WHERE (key = "{key}")'
+        else:
+            sql = f'INSERT INTO config VALUES ("{key}", "{value}")'
+        c.log(sql)
+        self.db(sql)
+
     def tqls(self):
         '''
         List items in the tq database in pretty format.
