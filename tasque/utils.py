@@ -22,3 +22,17 @@ def checkpid(pid: int) -> bool:
         return False
     else:
         return True
+
+
+def null2none(T: tuple) -> tuple:
+    '''
+    We unify null values into None in the python domain.
+    '''
+    return tuple(x if x != 'null' else None for x in T)
+
+
+def none2null(T: tuple) -> tuple:
+    '''
+    We unify none values into null in the SQL domain.
+    '''
+    return tuple(x if x is not None else 'null' for x in T)

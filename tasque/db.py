@@ -6,6 +6,7 @@ import rich
 import pathlib
 from . import defs
 from . import resources
+from . import utils
 
 
 class tqDB:
@@ -49,12 +50,12 @@ class tqDB:
         if isinstance(item, str):
             self.exec(item)
         elif isinstance(item, defs.Task):
-            values = ','.join(map(repr, item))
+            values = ','.join(map(repr, utils.none2null(item)))
             self.exec(f'''INSERT INTO
                     {defs.DB_TABLE_TASQUE} ({defs.TASK_FIELDS})
                     VALUES ({values})'''.replace('\n', ' '))
         elif isinstance(item, defs.Note):
-            values = ','.join(map(repr, item))
+            values = ','.join(map(repr, utils.null2none(item)))
             self.exec(f'''INSERT INTO
                     {defs.DB_TABLE_NOTES} ({defs.NOTE_FIELDS})
                     VALUES ({values})'''.replace('\n', ' '))
@@ -69,13 +70,13 @@ class tqDB:
         if not isinstance(sql, str):
             raise TypeError('expected SQL string here')
         if sql == defs.DB_TABLE_TASQUE:
-            return list(map(defs.Task._make,
+            return list(map(lambda T: defs.Task._make(utils.null2none(T)),
                 self[f'select * from {defs.DB_TABLE_TASQUE}']))
         elif sql == defs.DB_TABLE_NOTES:
-            return list(map(defs.Note._make,
+            return list(map(lambda T: defs.Note._make(utils.null2none(T)),
                 self[f'select * from {defs.DB_TABLE_NOTES}']))
         elif sql == defs.DB_TABLE_CONFIG:
-            return list(map(defs.Config._make,
+            return list(map(lambda T: defs.Config._make(utils.null2none(T)),
                 self[f'select * from {defs.DB_TABLE_CONFIG}']))
         conn = sqlite3.connect(self.dbpath)
         cursor = conn.cursor()
@@ -83,6 +84,7 @@ class tqDB:
         values = cursor.fetchall()  # len(values) may be 0
         cursor.close()
         conn.close()
+        values = list(map(utils.null2none, values))
         return values
 
     def __getitem__(self, sql: str) -> list:

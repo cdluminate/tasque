@@ -4,7 +4,7 @@ main:
 dev:
 	python3 setup.py install
 
-install:
+install: main
 	pip3 install ./dist/*.whl
 
 upload:

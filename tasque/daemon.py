@@ -109,14 +109,14 @@ class tqD:
     def refresh_workerpool(self):
         # cleanup the worker pool regularly, removing dead workers
         wp_ = []
-        for (taskid, w) in self.workerpool:
+        for (taskpid, w) in self.workerpool:
             if w.is_alive():
-                wp_.append((taskid, w))
+                wp_.append((taskpid, w))
             else:
                 w.join(timeout=3)
                 w.terminate()
-                if taskid in self.resource.book:
-                    self.resource.release[taskid]()
+                if taskpid in self.resource.book:
+                    self.resource.release[taskpid]()
         self.workerpool = wp_
 
     def daemonLoop(self):
@@ -137,20 +137,21 @@ class tqD:
             hpri = max(x[1] for x in R) if len(R)>0 else 0
             # traverse the task list of priority <pri> that we can run
             R = self.db[f'select * from tq where (pid is "null") and (retval is "null") and (pri = {hpri}) order by id']
-            tasks = [defs.Task._make(r) for r in R]
+            tasks = [defs.Task._make(utils.null2none(r)) for r in R]
             for task in tasks:
                 # can we allocate the required resource?
                 if not self.resource.canalloc(task.rsc):
                     continue
-                self.resource.request(task.id, task.rsc)
-                self.resource.acquire[task.id]()
                 # spawn the worker process
                 self.log.info(f'{self.__name__}[{os.getpid()}] Next task: {str(task)}')
                 # create a new worker process for this task
                 worker = mp.Process(target=tasqueWorker,
                         args=(self.db, self.log, task))
-                self.workerpool.append((task.id, worker))
                 worker.start()
+                # allocate resource
+                self.workerpool.append((worker.pid, worker))
+                self.resource.request(worker.pid, task.rsc)
+                self.resource.acquire[worker.pid]()
                 break
             # cleanup the worker pool regularly, removing dead workers
             self.refresh_workerpool()
@@ -175,7 +176,7 @@ def tasqueWorker(
         # change directory, fork and execute the task.
         os.chdir(task.cwd)
         cmd = shlex.split(task.cmd)
-        log.info(f'worker[{os.getpid()}] Command: {str(cmd)}')
+        log.info(f'worker[{os.getpid()}]: Command: {str(cmd)}')
         proc = subprocess.Popen(
             cmd, shell=False, stdin=None,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=task.cwd)

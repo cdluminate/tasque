@@ -93,11 +93,11 @@ class tqClient:
         results = self.db[f'select id from tq where (retval is not "null")']
         for taskid in [x[0] for x in results]:
             self.db(f'delete from notes where (id = {taskid})')
-        self.db(f'delete from tq where retval is not null')
+        self.db(f'delete from tq where (retval is not null)')
         c.log('cleared (either correctly or incorrectly) finished tasks.')
 
-    def enqueue(self, taskid: int = None, pid: int =None,
-            cwd: str = None, cmd: str = None, retval: str =None,
+    def enqueue(self, taskid: int = None, pid: int = None,
+            cwd: str = None, cmd: str = None, retval: str = None,
             stime: int = None, etime: int = None,
             pri: int = 0, rsc: float = None) -> None:
         '''
@@ -117,9 +117,9 @@ class tqClient:
         taskid = max(ids)+1 if len(ids) > 0 else 1
         if cmd is None:
             raise ValueError('must provide a valid cmd')
-        task = defs.Task._make([
-            'null' if v is None else v for v in
-            (taskid, pid, cwd, cmd, retval, stime, etime, pri, rsc)])
+        task = defs.Task._make(utils.none2null(
+            (taskid, pid, cwd, cmd, retval, stime, etime, pri, rsc)))
+        print(task)
         with c.status('Adding new task to the queue ...'):
             c.log('Enqueue:', task)
             self.db += task
@@ -207,11 +207,14 @@ class tqClient:
         cprint('┌───┬'+'─'*73+'┐', 'yellow')
         for k, task in enumerate(tasks, 1):
             taskid, pid, cwd, cmd, retval, stime, etime, pri, rsc = task
-            if retval == 'null' and pid == 'null':  # wait
+            taskid, pid, retval, stime, etime, pri = map(
+                    lambda x: x if x is None else int(x),
+                    (taskid, pid, retval, stime, etime, pri))
+            if retval is None and pid is None:  # wait
                 status = colored('[♨]', 'white')
-            elif retval != 'null' and pid == 'null':
+            elif retval is not None and pid is None:
                 status = colored('[✓]', 'green') if int(retval) == 0 else colored(f'[✗ {retval}]', 'white', 'on_red')
-            elif retval == 'null' and pid != 'null':
+            elif retval is None and pid is not None:
                 status = colored(f'[⚙ {pid}]', 'cyan', None, ['bold']) if int(pid) > 0 else colored(f'[⚠ Accident]', 'yellow', None, ['bold'])
             else:
                 status = colored('[???BUG???]', None, 'on_red')
@@ -220,9 +223,9 @@ class tqClient:
                   f'| Pri {colored("-" if 0==pri else str(pri), "magenta")}',
                   f'| Rsc {colored("-" if 10==rsc else str(rsc), "magenta")}')
             # second line : time
-            if all((stime != 'null', etime != 'null')):
+            if all((stime is not None, etime is not None)):
                 print(colored('│   ├', 'yellow'), colored('☀', 'yellow'), colored(f'{utils.sec2hms(float(etime)-float(stime))}', 'magenta'),
-                      f'| ({time.ctime(stime)}) ➜ ({time.ctime(etime)})')
+                      f'| ({time.ctime(int(stime))}) ➜ ({time.ctime(int(etime))})')
             elif stime:
                 print(colored('│   ├', 'yellow'), colored('☀', 'yellow'), f'Started at ({time.ctime(stime)})',
                       colored(f'➜ {utils.sec2hms(time.time() - stime)}', 'magenta'), 'Elapsed.')
